@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npx skills *)",
+      "PowerShell(Get-ChildItem \"D:\\\\ProjectAssetTT\\\\it-asset-web\" | ForEach-Object { Move-Item $_.FullName \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\\" -Force }; Remove-Item \"D:\\\\ProjectAssetTT\\\\it-asset-web\" -Force -ErrorAction SilentlyContinue; Get-ChildItem \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\")"
+    ]
+  }
+}
