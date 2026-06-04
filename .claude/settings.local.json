@@ -4,7 +4,12 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(npx skills *)",
-      "PowerShell(Get-ChildItem \"D:\\\\ProjectAssetTT\\\\it-asset-web\" | ForEach-Object { Move-Item $_.FullName \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\\" -Force }; Remove-Item \"D:\\\\ProjectAssetTT\\\\it-asset-web\" -Force -ErrorAction SilentlyContinue; Get-ChildItem \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\")"
+      "PowerShell(Get-ChildItem \"D:\\\\ProjectAssetTT\\\\it-asset-web\" | ForEach-Object { Move-Item $_.FullName \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\\" -Force }; Remove-Item \"D:\\\\ProjectAssetTT\\\\it-asset-web\" -Force -ErrorAction SilentlyContinue; Get-ChildItem \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\")",
+      "Bash(xargs grep *)",
+      "Bash(node -e \"const F = require\\('E:/TT_CODE/IT-Asset-Web-TT/node_modules/fuse.js'\\); console.log\\(typeof F, typeof F.default\\)\")",
+      "Bash(node -e \"const {default: F} = require\\('E:/TT_CODE/IT-Asset-Web-TT/node_modules/fuse.js'\\); console.log\\(typeof F\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)"
     ]
   }
 }
