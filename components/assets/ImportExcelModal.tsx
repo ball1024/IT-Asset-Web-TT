@@ -194,9 +194,22 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
 
     } else {
       const VALID_STATUS = ['active', 'probation', 'resign']
-      const records = rows
-        .filter(r => String(r.emp_id).trim() && String(r.full_name_th).trim())
-        .map(r => ({
+      const validRows = rows.filter(r => String(r.emp_id).trim() && String(r.full_name_th).trim())
+
+      if (importMode === 'add') {
+        // ADD mode: ข้าม emp_id ที่มีอยู่แล้ว
+        const allEmpIds = validRows.map(r => String(r.emp_id).trim())
+        const { data: existing } = await supabase.from('employees').select('emp_id').in('emp_id', allEmpIds)
+        const existingSet = new Set((existing ?? []).map(e => e.emp_id))
+
+        const newRows = validRows.filter(r => !existingSet.has(String(r.emp_id).trim()))
+        const skipped = validRows.filter(r => existingSet.has(String(r.emp_id).trim()))
+        setSkippedCount(skipped.length)
+        setSkippedNos(skipped.map(r => String(r.emp_id).trim()))
+
+        if (!newRows.length) { setImporting(false); setDone(true); return }
+
+        const records = newRows.map(r => ({
           emp_id: String(r.emp_id).trim(),
           full_name_th: String(r.full_name_th).trim(),
           full_name_en: r.full_name_en ? String(r.full_name_en).trim() : null,
@@ -209,13 +222,36 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
           status: VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active',
         }))
 
-      const { data: empData, error } = await supabase
-        .from('employees').upsert(records, { onConflict: 'emp_id' }).select()
-      if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
-      if (empData?.length) {
-        for (const e of empData)
-          await insertEmployeeLog({ emp_id: e.emp_id, action: 'imported', detail: 'นำเข้าจาก Excel', performed_by: userId })
-        setImportedCount(empData.length)
+        const { data: empData, error } = await supabase.from('employees').insert(records).select()
+        if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
+        if (empData?.length) {
+          for (const e of empData)
+            await insertEmployeeLog({ emp_id: e.emp_id, action: 'imported', detail: 'นำเข้าจาก Excel', performed_by: userId })
+          setImportedCount(empData.length)
+        }
+      } else {
+        // UPDATE mode: upsert ทั้งหมด
+        const records = validRows.map(r => ({
+          emp_id: String(r.emp_id).trim(),
+          full_name_th: String(r.full_name_th).trim(),
+          full_name_en: r.full_name_en ? String(r.full_name_en).trim() : null,
+          nickname: r.nickname ? String(r.nickname).trim() : null,
+          department: r.department ? String(r.department).trim() : null,
+          position: r.position ? String(r.position).trim() : null,
+          branch: r.branch ? String(r.branch).trim() : null,
+          emp_email: r.emp_email ? String(r.emp_email).trim() : null,
+          phone: r.phone ? String(r.phone).trim() : null,
+          status: VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active',
+        }))
+
+        const { data: empData, error } = await supabase
+          .from('employees').upsert(records, { onConflict: 'emp_id' }).select()
+        if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
+        if (empData?.length) {
+          for (const e of empData)
+            await insertEmployeeLog({ emp_id: e.emp_id, action: 'imported', detail: 'อัปเดตจาก Excel', performed_by: userId })
+          setUpdatedCount(empData.length)
+        }
       }
     }
 
