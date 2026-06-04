@@ -5,13 +5,15 @@ import type { Asset, Employee } from '@/lib/supabase'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import { compressImage } from '@/lib/compressImage'
 import { assetImageKey, getNextImageIndex } from '@/lib/r2'
-import { ScanLine, Camera, Upload, X, Loader2 } from 'lucide-react'
+import { insertAssetLog } from '@/lib/logging'
+import { ScanLine, Camera, Upload, X, Loader2, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Fuse from 'fuse.js'
 
-const CATEGORIES = ['Notebook', 'MacBook', 'Desktop', 'iMac', 'Monitor', 'Printer', 'Network', 'Other']
+const CATEGORIES = ['Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 const STATUSES = [
-  { value: 'active', label: 'ใช้งาน' }, { value: 'repair', label: 'ซ่อม' },
-  { value: 'storage', label: 'สต็อก' }, { value: 'retired', label: 'ปลดระวาง' },
+  { value: 'active', label: 'ใช้งาน' }, { value: 'available', label: 'ว่าง' },
+  { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'Stock' },
 ]
 
 interface Props {
@@ -33,14 +35,22 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     brand: initial?.brand ?? '',
     model: initial?.model ?? '',
     serial_no: initial?.serial_no ?? '',
-    status: initial?.status ?? 'active',
+    status: initial?.status ?? 'available',
     location: initial?.location ?? '',
     purchase_date: initial?.purchase_date ?? '',
     notes: initial?.notes ?? '',
     emp_id: initial?.emp_id ?? '',
+    department: (initial as any)?.department ?? '',
   })
 
+  const [deptFromEmp, setDeptFromEmp] = useState(true)
+
   const [employee, setEmployee] = useState<Employee | null>(null)
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
+  const [empQuery, setEmpQuery] = useState('')
+  const [empResults, setEmpResults] = useState<Employee[]>([])
+  const [showEmpDrop, setShowEmpDrop] = useState(false)
+  const empRef = useRef<HTMLDivElement>(null)
   const [assetNoError, setAssetNoError] = useState('')
   const [scanner, setScanner] = useState<'asset_no' | 'serial_no' | null>(null)
   const [saving, setSaving] = useState(false)
@@ -50,11 +60,55 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
 
+  // โหลด employees ทั้งหมดครั้งเดียว
   useEffect(() => {
-    if (!form.emp_id) { setEmployee(null); return }
-    createClient().from('employees').select('*').eq('emp_id', form.emp_id).maybeSingle()
-      .then(({ data }) => setEmployee(data ?? null))
-  }, [form.emp_id])
+    createClient().from('employees').select('emp_id,full_name_th,full_name_en,nickname,department').order('full_name_th')
+      .then(({ data }) => {
+        const emps = (data ?? []) as Employee[]
+        setAllEmployees(emps)
+        // ถ้า edit mode และมี emp_id อยู่แล้ว ให้ set employee ด้วย
+        if (initial?.emp_id) {
+          const found = emps.find(e => e.emp_id === initial.emp_id)
+          if (found) {
+            setEmployee(found)
+            setEmpQuery(found.full_name_th)
+          }
+        }
+      })
+  }, [])
+
+  // Fuse search เมื่อ query เปลี่ยน
+  useEffect(() => {
+    if (!empQuery.trim()) { setEmpResults([]); return }
+    const fuse = new Fuse(allEmployees, {
+      keys: ['emp_id', 'full_name_th', 'full_name_en', 'nickname'],
+      threshold: 0.35,
+    })
+    setEmpResults(fuse.search(empQuery).slice(0, 8).map(r => r.item))
+  }, [empQuery, allEmployees])
+
+  // ปิด dropdown เมื่อคลิกนอก
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (empRef.current && !empRef.current.contains(e.target as Node)) setShowEmpDrop(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selectEmployee = (emp: Employee) => {
+    setEmployee(emp)
+    setForm(f => ({ ...f, emp_id: emp.emp_id, status: 'active', ...(deptFromEmp ? { department: emp.department ?? '' } : {}) }))
+    setEmpQuery(emp.full_name_th)
+    setShowEmpDrop(false)
+  }
+
+  const clearEmployee = () => {
+    setEmployee(null)
+    setForm(f => ({ ...f, emp_id: '', status: 'available', ...(deptFromEmp ? { department: '' } : {}) }))
+    setEmpQuery('')
+    setEmpResults([])
+  }
 
   const checkAssetNo = async (val: string) => {
     if (!val || (isEdit && val === initial?.asset_no)) { setAssetNoError(''); return }
@@ -111,9 +165,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
       await fetch(url, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
       keys.push(key)
 
-      await supabase.from('asset_logs').insert({
-        asset_id: assetId, action: 'image_added', detail: key, performed_by: userId,
-      })
+      await insertAssetLog({ asset_id: assetId, action: 'image_added', detail: key, performed_by: userId })
     }
 
     await supabase.from('assets').update({ images: keys }).eq('id', assetId)
@@ -126,13 +178,31 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     if (assetNoError) return
     setSaving(true)
     const supabase = createClient()
-    const payload = { ...form, emp_id: form.emp_id || null, purchase_date: form.purchase_date || null }
+    const payload = { ...form, emp_id: form.emp_id || null, purchase_date: form.purchase_date || null, department: form.department || null }
 
     if (isEdit) {
+      const FIELD_LABELS: Record<string, string> = {
+        asset_no: 'Asset No.', name: 'ชื่อ', category: 'ประเภท', brand: 'ยี่ห้อ',
+        model: 'รุ่น', serial_no: 'Serial No.', status: 'สถานะ', location: 'ที่ตั้ง',
+        purchase_date: 'วันที่ซื้อ', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
+      }
+      const changed = (Object.keys(form) as (keyof typeof form)[])
+        .filter(k => (form[k] ?? '') !== (initial?.[k] ?? ''))
+        .map(k => FIELD_LABELS[k] ?? k)
+      const detail = changed.length ? changed.join(', ') : undefined
       await supabase.from('assets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', initial!.id!)
-      await supabase.from('asset_logs').insert({ asset_id: initial!.id!, action: 'updated', performed_by: userId })
+      await insertAssetLog({ asset_id: initial!.id!, action: 'updated', performed_by: userId, detail })
       onSave?.(initial!.id!)
     } else {
+      // double-check duplicate asset_no before insert
+      if (form.asset_no) {
+        const { data: dup } = await supabase.from('assets').select('id').eq('asset_no', form.asset_no.trim()).maybeSingle()
+        if (dup) {
+          setAssetNoError('Asset No. นี้มีอยู่แล้ว')
+          setSaving(false)
+          return
+        }
+      }
       const { data, error } = await supabase.from('assets').insert({ ...payload, images: [], created_by: userId }).select().single()
       if (error) {
         alert('เพิ่ม Asset ไม่สำเร็จ: ' + error.message)
@@ -140,7 +210,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
         return
       }
       if (data) {
-        await supabase.from('asset_logs').insert({ asset_id: data.id, action: 'created', performed_by: userId })
+        await insertAssetLog({ asset_id: data.id, action: 'created', performed_by: userId })
         try {
           await uploadImages(data.id, data.asset_no)
         } catch (e) {
@@ -153,8 +223,8 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     setSaving(false)
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
-  const lbl = 'block text-sm font-medium text-gray-700 mb-1'
+  const inp = 'w-full border border-gray-300 dark:border-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 placeholder-gray-400 dark:placeholder-gray-400'
+  const lbl = 'block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1'
 
   return (
     <>
@@ -166,8 +236,8 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           <label className={lbl}>Asset No. *</label>
           <div className="flex gap-2">
             <input value={form.asset_no} onChange={set('asset_no')} required placeholder="e.g. NTB-2024-001" className={`${inp} flex-1`} />
-            <button type="button" onClick={() => setScanner('asset_no')} className="px-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <ScanLine size={16} className="text-gray-500" />
+            <button type="button" onClick={() => setScanner('asset_no')} className="px-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              <ScanLine size={16} className="text-gray-500 dark:text-gray-400" />
             </button>
           </div>
           {assetNoError && <p className="text-red-500 text-xs mt-1">{assetNoError}</p>}
@@ -212,8 +282,8 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           <label className={lbl}>Serial No.</label>
           <div className="flex gap-2">
             <input value={form.serial_no} onChange={set('serial_no')} className={`${inp} flex-1`} />
-            <button type="button" onClick={() => setScanner('serial_no')} className="px-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <ScanLine size={16} className="text-gray-500" />
+            <button type="button" onClick={() => setScanner('serial_no')} className="px-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              <ScanLine size={16} className="text-gray-500 dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -230,13 +300,90 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           <input value={form.location} onChange={set('location')} className={inp} />
         </div>
 
-        {/* Emp ID */}
-        <div>
-          <label className={lbl}>รหัสพนักงาน</label>
-          <input value={form.emp_id} onChange={set('emp_id')} placeholder="EMP-00142" className={inp} />
+        {/* Employee search combobox */}
+        <div ref={empRef} className="relative">
+          <label className={lbl}>พนักงาน</label>
+          <div className="relative">
+            <input
+              value={empQuery}
+              onChange={e => { setEmpQuery(e.target.value); setShowEmpDrop(true); if (!e.target.value) clearEmployee() }}
+              onFocus={() => { if (empQuery) setShowEmpDrop(true) }}
+              placeholder="ค้นหาชื่อ, ชื่อเล่น, รหัสพนักงาน..."
+              className={`${inp} pr-8`}
+              autoComplete="off"
+            />
+            {employee
+              ? <button type="button" onClick={clearEmployee} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><X size={14} /></button>
+              : <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            }
+          </div>
+
+          {/* Selected badge */}
           {employee && (
-            <p className="text-xs text-indigo-600 mt-1">{employee.full_name_th} · {employee.department}</p>
+            <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1">
+              <span className="font-mono bg-indigo-50 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded">{employee.emp_id}</span>
+              {employee.nickname && <span>({employee.nickname})</span>}
+              {employee.department && <span className="text-gray-400 dark:text-gray-500">· {employee.department}</span>}
+            </p>
           )}
+
+          {/* Dropdown results */}
+          {showEmpDrop && empResults.length > 0 && (
+            <ul className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+              {empResults.map(emp => (
+                <li key={emp.emp_id}>
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); selectEmployee(emp) }}
+                    className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 flex items-center gap-3 text-sm"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0">
+                      {emp.full_name_th.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800 dark:text-gray-100 truncate">
+                        {emp.full_name_th}
+                        {emp.nickname && <span className="text-gray-400 dark:text-gray-500 font-normal"> ({emp.nickname})</span>}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {emp.emp_id}{emp.full_name_en ? ` · ${emp.full_name_en}` : ''}
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Department */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className={lbl}>แผนก</label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={deptFromEmp}
+                onChange={e => {
+                  setDeptFromEmp(e.target.checked)
+                  if (e.target.checked && employee?.department) setForm(f => ({ ...f, department: employee.department ?? '' }))
+                }}
+                className="w-3.5 h-3.5 accent-indigo-600"
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400">อ้างอิงจากพนักงาน</span>
+            </label>
+          </div>
+          <select
+            value={form.department}
+            onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
+            disabled={deptFromEmp}
+            className={`${inp} disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <option value="">— ไม่ระบุ —</option>
+            {[...new Set(allEmployees.map(e => e.department).filter(Boolean))].sort().map(d => (
+              <option key={d!} value={d!}>{d}</option>
+            ))}
+          </select>
         </div>
 
         {/* Notes */}
@@ -269,14 +416,14 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
             {pendingFiles.length < 5 && (
               <div className="flex gap-2">
                 <button type="button" onClick={() => cameraRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                   <Camera size={15} /> ถ่ายรูป
                 </button>
                 <button type="button" onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                   <Upload size={15} /> เลือกรูป
                 </button>
-                <span className="text-xs text-gray-400 self-center">{pendingFiles.length}/5</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 self-center">{pendingFiles.length}/5</span>
               </div>
             )}
 
@@ -290,7 +437,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
         {/* Buttons */}
         <div className="md:col-span-2 flex gap-3 justify-end">
           <button type="button" onClick={() => router.back()}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             ยกเลิก
           </button>
           <button type="submit" disabled={saving || uploadingImages || !!assetNoError}

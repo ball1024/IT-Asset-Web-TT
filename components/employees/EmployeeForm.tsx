@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Employee } from '@/lib/supabase'
+import { insertEmployeeLog } from '@/lib/logging'
 import { X } from 'lucide-react'
 
 interface Props {
@@ -33,13 +34,13 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
 
     if (isEdit) {
       await supabase.from('employees').update(payload).eq('emp_id', initial!.emp_id)
-      await supabase.from('employee_logs').insert({
+      await insertEmployeeLog({
         emp_id: initial!.emp_id, action: 'updated',
         detail: `แก้ไขข้อมูล ${form.full_name_th}`, performed_by: userId,
       })
     } else {
       await supabase.from('employees').insert(payload)
-      await supabase.from('employee_logs').insert({
+      await insertEmployeeLog({
         emp_id: form.emp_id, action: 'created',
         detail: `เพิ่มพนักงาน ${form.full_name_th}`, performed_by: userId,
       })
@@ -47,14 +48,14 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
     setSaving(false); onDone()
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
-  const lbl = 'block text-sm font-medium text-gray-700 mb-1'
+  const inp = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+  const lbl = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-[520px] relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400"><X size={18} /></button>
-        <h3 className="font-semibold text-gray-800 mb-4">{isEdit ? 'แก้ไข' : 'เพิ่ม'}พนักงาน</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-[520px] relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><X size={18} /></button>
+        <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">{isEdit ? 'แก้ไข' : 'เพิ่ม'}พนักงาน</h3>
         <form onSubmit={submit} className="grid grid-cols-2 gap-3">
           <div><label className={lbl}>รหัสพนักงาน *</label><input value={form.emp_id} onChange={set('emp_id')} required disabled={isEdit} className={inp} /></div>
           <div><label className={lbl}>ชื่อ TH *</label><input value={form.full_name_th} onChange={set('full_name_th')} required className={inp} /></div>
@@ -74,7 +75,7 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
             </select>
           </div>
           <div className="col-span-2 flex gap-2 justify-end mt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">ยกเลิก</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">ยกเลิก</button>
             <button type="submit" disabled={saving} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
             </button>

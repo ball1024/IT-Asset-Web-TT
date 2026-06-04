@@ -50,17 +50,17 @@ export default function SignupPage() {
     setLoading(false)
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
-  const lbl = 'block text-sm font-medium text-gray-700 mb-1.5'
+  const inp = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+  const lbl = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
 
         {/* Logo */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-indigo-700">IT Asset</h1>
-          <p className="text-gray-500 text-sm mt-0.5">สมัครสมาชิก</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">สมัครสมาชิก</p>
         </div>
 
         {success ? (
@@ -69,9 +69,9 @@ export default function SignupPage() {
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">✅</span>
             </div>
-            <h3 className="font-semibold text-gray-800 mb-1">สมัครสำเร็จ!</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              กรุณาตรวจสอบอีเมล <span className="font-medium text-gray-700">{form.email}</span> เพื่อยืนยันบัญชี
+            <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1">สมัครสำเร็จ!</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              กรุณาตรวจสอบอีเมล <span className="font-medium text-gray-700 dark:text-gray-200">{form.email}</span> เพื่อยืนยันบัญชี
             </p>
             <Link href="/login" className="block w-full text-center bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-indigo-700">
               ไปหน้า Login
@@ -117,7 +117,7 @@ export default function SignupPage() {
                   className={`${inp} pr-10`}
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -136,7 +136,7 @@ export default function SignupPage() {
                   className={`${inp} pr-10 ${form.confirm && form.confirm !== form.password ? 'border-red-300 focus:ring-red-400' : ''}`}
                 />
                 <button type="button" onClick={() => setShowConfirm(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
                   {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -162,7 +162,7 @@ export default function SignupPage() {
             </button>
 
             {/* Login link */}
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
               มีบัญชีแล้ว?{' '}
               <Link href="/login" className="text-indigo-600 font-medium hover:underline">
                 เข้าสู่ระบบ

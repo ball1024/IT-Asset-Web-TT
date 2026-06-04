@@ -11,10 +11,10 @@ import { canImportExport } from '@/lib/permissions'
 import { Search, Download, Upload, ScanLine } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
-const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'Desktop', 'iMac', 'Monitor', 'Printer', 'Network', 'Other']
+const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 const STATUSES = [
   { value: '', label: 'ทุกสถานะ' }, { value: 'active', label: 'ใช้งาน' },
-  { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'สต็อก' }, { value: 'retired', label: 'ปลดระวาง' },
+  { value: 'available', label: 'ว่าง' }, { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'Stock' },
 ]
 
 export default function AssetsPageContent() {
@@ -65,7 +65,7 @@ export default function AssetsPageContent() {
     XLSX.writeFile(wb, `assets_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  const sel = 'border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  const sel = 'border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
 
   return (
     <>
@@ -77,13 +77,13 @@ export default function AssetsPageContent() {
       )}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-800">All Assets</h2>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">All Assets</h2>
           {canImportExport(role) && (
             <div className="flex gap-2">
-              <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <Upload size={14} /> Import
               </button>
-              <button onClick={exportXlsx} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <button onClick={exportXlsx} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <Download size={14} /> Export
               </button>
             </div>
@@ -92,12 +92,12 @@ export default function AssetsPageContent() {
 
         <div className="flex flex-wrap gap-2">
           <div className="relative flex items-center">
-            <Search size={14} className="absolute left-2.5 text-gray-400 pointer-events-none" />
+            <Search size={14} className="absolute left-2.5 text-gray-400 dark:text-gray-500 pointer-events-none" />
             <input
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="ค้นหา Asset No., ชื่อ, พนักงาน..."
-              className="pl-8 pr-10 border border-gray-300 rounded-lg py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+              className="pl-8 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
             <button
               onClick={() => setShowScanner(true)}
@@ -118,8 +118,8 @@ export default function AssetsPageContent() {
           </select>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="px-4 py-3 border-b border-gray-100 text-sm text-gray-500">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
             {loading ? 'Loading...' : `${filtered.length} รายการ`}
           </div>
           <AssetTable assets={filtered} role={role} userId={userId ?? ''} onDelete={id => setAssets(a => a.filter(x => x.id !== id))} />

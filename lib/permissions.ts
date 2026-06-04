@@ -15,7 +15,9 @@ export function hasRole(userRole: Role | null | undefined, required: Role): bool
 export function canEdit(role: Role | null | undefined) { return hasRole(role, 'user') }
 export function canDelete(role: Role | null | undefined) { return hasRole(role, 'admin') }
 export function canTransfer(role: Role | null | undefined) { return hasRole(role, 'user') }
-export function canManageEmployees(role: Role | null | undefined) { return role === 'master_admin' }
+export function canViewEmployees(role: Role | null | undefined) { return hasRole(role, 'user') }
+export function canManageEmployees(role: Role | null | undefined) { return hasRole(role, 'user') }
+export function canDeleteEmployee(role: Role | null | undefined) { return role === 'master_admin' }
 export function canViewMembers(role: Role | null | undefined) { return hasRole(role, 'admin') }
 export function canManageMembers(role: Role | null | undefined) { return role === 'master_admin' }
 export function canImportExport(role: Role | null | undefined) { return hasRole(role, 'user') }

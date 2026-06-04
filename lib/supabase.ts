@@ -38,12 +38,13 @@ export interface Asset {
   brand?: string
   model?: string
   serial_no?: string
-  status: 'active' | 'repair' | 'storage' | 'retired'
+  status: 'active' | 'available' | 'repair' | 'storage'
   location?: string
   purchase_date?: string
   notes?: string
   images: string[]
   emp_id?: string
+  department?: string
   created_by?: string
   created_at?: string
   updated_at?: string

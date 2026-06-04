@@ -64,24 +64,24 @@ export default function ProfileContent() {
   }
 
   const avatarLetter = fullName?.charAt(0)?.toUpperCase() || email?.charAt(0)?.toUpperCase() || 'U'
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
-  const lbl = 'block text-sm font-medium text-gray-700 mb-1.5'
+  const inp = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+  const lbl = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'
 
   return (
     <>
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
 
       <div className="max-w-xl space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">ข้อมูลผู้ใช้</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">ข้อมูลผู้ใช้</h2>
 
         {/* Avatar + Role */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 flex items-center gap-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 flex items-center gap-5">
           <div className="w-16 h-16 rounded-full bg-indigo-600 text-white flex items-center justify-center text-2xl font-bold shrink-0">
             {avatarLetter}
           </div>
           <div>
-            <p className="text-lg font-semibold text-gray-800">{fullName || '-'}</p>
-            <p className="text-sm text-gray-400">{email}</p>
+            <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">{fullName || '-'}</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">{email}</p>
             <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLOR[role ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
               {ROLE_LABEL[role ?? ''] ?? role}
             </span>
@@ -89,8 +89,8 @@ export default function ProfileContent() {
         </div>
 
         {/* แก้ไขข้อมูล */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-800 mb-4">แก้ไขข้อมูลส่วนตัว</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">แก้ไขข้อมูลส่วนตัว</h3>
           <form onSubmit={saveProfile} className="space-y-4">
             <div>
               <label className={lbl}>ชื่อ-นามสกุล</label>
@@ -99,8 +99,8 @@ export default function ProfileContent() {
             </div>
             <div>
               <label className={lbl}>Email</label>
-              <input value={email} disabled className={`${inp} bg-gray-50 text-gray-400 cursor-not-allowed`} />
-              <p className="text-xs text-gray-400 mt-1">ไม่สามารถเปลี่ยน Email ได้</p>
+              <input value={email} disabled className={`${inp} bg-gray-50 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed`} />
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">ไม่สามารถเปลี่ยน Email ได้</p>
             </div>
             <button type="submit" disabled={savingProfile}
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
@@ -111,8 +111,8 @@ export default function ProfileContent() {
         </div>
 
         {/* เปลี่ยนรหัสผ่าน */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-800 mb-4">เปลี่ยนรหัสผ่าน</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">เปลี่ยนรหัสผ่าน</h3>
           <form onSubmit={savePassword} className="space-y-4">
             <div>
               <label className={lbl}>รหัสผ่านใหม่</label>
@@ -121,7 +121,7 @@ export default function ProfileContent() {
                   onChange={e => setNewPass(e.target.value)}
                   placeholder="อย่างน้อย 6 ตัวอักษร" className={`${inp} pr-10`} />
                 <button type="button" onClick={() => setShowNew(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
                   {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -134,7 +134,7 @@ export default function ProfileContent() {
                   placeholder="กรอกอีกครั้ง"
                   className={`${inp} pr-10 ${confirmPass && confirmPass !== newPass ? 'border-red-300' : ''}`} />
                 <button type="button" onClick={() => setShowConfirm(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
                   {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>

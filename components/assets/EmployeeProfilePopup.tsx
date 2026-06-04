@@ -8,11 +8,11 @@ interface Props {
 }
 
 const Row = ({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string }) => (
-  <div className="flex items-start gap-3 py-2.5 border-b border-gray-100 last:border-0">
-    <Icon size={15} className="text-gray-400 mt-0.5 shrink-0" />
+  <div className="flex items-start gap-3 py-2.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+    <Icon size={15} className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0" />
     <div className="flex-1 min-w-0">
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className={`text-sm font-medium mt-0.5 ${value ? 'text-gray-800' : 'text-gray-300'}`}>{value || '—'}</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500">{label}</p>
+      <p className={`text-sm font-medium mt-0.5 ${value ? 'text-gray-800 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'}`}>{value || '—'}</p>
     </div>
   </div>
 )
@@ -20,22 +20,22 @@ const Row = ({ icon: Icon, label, value }: { icon: React.ElementType; label: str
 export default function EmployeeProfilePopup({ employee, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md relative" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md relative" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center gap-4 p-6 border-b border-gray-100">
-          <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl shrink-0">
+        <div className="flex items-center gap-4 p-6 border-b border-gray-100 dark:border-gray-700">
+          <div className="w-14 h-14 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-xl shrink-0">
             {employee.full_name_th.slice(0, 2)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-800 text-lg leading-tight">{employee.full_name_th}</p>
-            {employee.full_name_en && <p className="text-sm text-gray-500">{employee.full_name_en}</p>}
+            <p className="font-bold text-gray-800 dark:text-gray-100 text-lg leading-tight">{employee.full_name_th}</p>
+            {employee.full_name_en && <p className="text-sm text-gray-500 dark:text-gray-400">{employee.full_name_en}</p>}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className="text-xs font-mono bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{employee.emp_id}</span>
-              {employee.nickname && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">"{employee.nickname}"</span>}
+              <span className="text-xs font-mono bg-indigo-50 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full">{employee.emp_id}</span>
+              {employee.nickname && <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">"{employee.nickname}"</span>}
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
             <X size={18} />
           </button>
         </div>

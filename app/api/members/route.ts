@@ -15,7 +15,7 @@ export async function GET() {
   }
 
   const service = await createServiceSupabase()
-  const { data: rolesData } = await supabase.from('user_roles').select('user_id, role')
+  const { data: rolesData } = await service.from('user_roles').select('user_id, role')
   const { data: { users } } = await service.auth.admin.listUsers({ perPage: 1000 })
 
   const roleMap = Object.fromEntries((rolesData ?? []).map(r => [r.user_id, r.role]))

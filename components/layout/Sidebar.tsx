@@ -10,6 +10,7 @@ import { canEdit, canDelete, canViewMembers, canManageEmployees, canManageMember
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import ThemeToggle from '@/components/ui/ThemeToggle'
 
 const ROLE_LABEL: Record<string, string> = {
   master_admin: 'Master Admin', admin: 'Admin', user: 'User', view: 'View',
@@ -46,12 +47,14 @@ export default function Sidebar({ open, onClose }: Props) {
 
   const active = (href: string) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-      pathname === href ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+      pathname === href
+        ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
+        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
     }`
 
   const navLinks = (
     <nav className="flex-1 space-y-1 overflow-y-auto">
-      <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Main</p>
+      <p className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Main</p>
       <Link href="/" onClick={onClose} className={active('/')}><LayoutDashboard size={18} /> Dashboard</Link>
       <Link href="/assets" onClick={onClose} className={active('/assets')}><Package size={18} /> All Assets</Link>
       {canEdit(role) && (
@@ -59,12 +62,12 @@ export default function Sidebar({ open, onClose }: Props) {
       )}
       {canDelete(role) && (
         <>
-          <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-1">Report</p>
+          <p className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-4 mb-1">Report</p>
           <Link href="/logs" onClick={onClose} className={active('/logs')}><ClipboardList size={18} /> Activity Log</Link>
         </>
       )}
       {(canManageEmployees(role) || canViewMembers(role) || canAccessSettings(role)) && (
-        <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-1">System</p>
+        <p className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-4 mb-1">System</p>
       )}
       {canManageEmployees(role) && (
         <Link href="/employees" onClick={onClose} className={active('/employees')}><Users size={18} /> Employees</Link>
@@ -80,16 +83,15 @@ export default function Sidebar({ open, onClose }: Props) {
 
   const userMenu = (
     <div className="mt-4 relative">
-      {/* Popup — อยู่บน profile button */}
+      {/* Popup */}
       {showUserMenu && (
         <>
-          {/* overlay ปิด popup */}
           <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-800">{displayName}</p>
-              <p className="text-xs text-gray-400 truncate">{userEmail}</p>
-              <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{displayName}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{userEmail}</p>
+              <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs rounded-full font-medium">
                 {ROLE_LABEL[role ?? ''] ?? role}
               </span>
             </div>
@@ -97,14 +99,14 @@ export default function Sidebar({ open, onClose }: Props) {
               type="button"
               onMouseDown={e => e.stopPropagation()}
               onClick={() => { setShowUserMenu(false); router.push('/profile') }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50">
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               <User size={15} /> ข้อมูลผู้ใช้
             </button>
             <button
               type="button"
               onMouseDown={e => e.stopPropagation()}
               onClick={logout}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50">
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
               <LogOut size={15} /> Sign out
             </button>
           </div>
@@ -115,15 +117,15 @@ export default function Sidebar({ open, onClose }: Props) {
       <button
         type="button"
         onClick={() => setShowUserMenu(v => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors">
+        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
         <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
           {avatarLetter}
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-medium text-gray-800 truncate">{displayName}</p>
-          <p className="text-xs text-gray-400">{ROLE_LABEL[role ?? ''] ?? role}</p>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{displayName}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{ROLE_LABEL[role ?? ''] ?? role}</p>
         </div>
-        <ChevronUp size={14} className={`text-gray-400 transition-transform ${showUserMenu ? '' : 'rotate-180'}`} />
+        <ChevronUp size={14} className={`text-gray-400 dark:text-gray-500 transition-transform ${showUserMenu ? '' : 'rotate-180'}`} />
       </button>
     </div>
   )
@@ -133,12 +135,15 @@ export default function Sidebar({ open, onClose }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between px-3 mb-8">
         <div>
-          <h1 className="text-xl font-bold text-indigo-700">IT Asset</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Management System</p>
+          <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset</h1>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Management System</p>
         </div>
-        <button onClick={onClose} className="md:hidden text-gray-400 hover:text-gray-600 p-1">
-          <X size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <button onClick={onClose} className="md:hidden text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1">
+            <X size={20} />
+          </button>
+        </div>
       </div>
       {navLinks}
       {userMenu}
@@ -148,7 +153,7 @@ export default function Sidebar({ open, onClose }: Props) {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden md:flex w-60 min-h-screen bg-white border-r border-gray-200 flex-col py-6 px-3 shrink-0">
+      <aside className="hidden md:flex w-60 min-h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col py-6 px-3 shrink-0">
         {sidebarContent}
       </aside>
 
@@ -160,7 +165,7 @@ export default function Sidebar({ open, onClose }: Props) {
       )}
 
       {/* Mobile drawer */}
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-white flex flex-col py-6 px-3 shadow-xl transform transition-transform duration-200 md:hidden ${
+      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-900 flex flex-col py-6 px-3 shadow-xl transform transition-transform duration-200 md:hidden ${
         open ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {sidebarContent}

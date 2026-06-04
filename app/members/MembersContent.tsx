@@ -28,13 +28,13 @@ export default function MembersContent() {
       .catch(() => setLoading(false))
   }, [])
 
-  if (roleLoading) return <div className="text-gray-400 text-sm p-4">Loading...</div>
+  if (roleLoading) return <div className="text-gray-400 dark:text-gray-500 text-sm p-4">Loading...</div>
 
   if (!canViewMembers(role)) return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <p className="text-4xl mb-3">🔒</p>
-      <p className="text-gray-600 font-medium">ไม่มีสิทธิ์เข้าถึง</p>
-      <p className="text-gray-400 text-sm mt-1">เฉพาะ Admin ขึ้นไปเท่านั้น</p>
+      <p className="text-gray-600 dark:text-gray-300 font-medium">ไม่มีสิทธิ์เข้าถึง</p>
+      <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">เฉพาะ Admin ขึ้นไปเท่านั้น</p>
     </div>
   )
 
@@ -63,15 +63,15 @@ export default function MembersContent() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-800">Members</h2>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Members</h2>
           {!isMasterAdmin && (
-            <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-full">
+            <span className="text-xs bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700 px-2.5 py-1 rounded-full">
               ดูได้อย่างเดียว — เปลี่ยน Role ได้เฉพาะ Master Admin
             </span>
           )}
         </div>
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="px-4 py-3 border-b border-gray-100 text-sm text-gray-500">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
             {loading ? 'Loading...' : `${members.length} คน`}
           </div>
           <MemberTable
