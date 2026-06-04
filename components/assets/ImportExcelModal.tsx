@@ -230,28 +230,39 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
           setImportedCount(empData.length)
         }
       } else {
-        // UPDATE mode: upsert ทั้งหมด
-        const records = validRows.map(r => ({
-          emp_id: String(r.emp_id).trim(),
-          full_name_th: String(r.full_name_th).trim(),
-          full_name_en: r.full_name_en ? String(r.full_name_en).trim() : null,
-          nickname: r.nickname ? String(r.nickname).trim() : null,
-          department: r.department ? String(r.department).trim() : null,
-          position: r.position ? String(r.position).trim() : null,
-          branch: r.branch ? String(r.branch).trim() : null,
-          emp_email: r.emp_email ? String(r.emp_email).trim() : null,
-          phone: r.phone ? String(r.phone).trim() : null,
-          status: VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active',
-        }))
+        // UPDATE mode: อัปเดตเฉพาะที่มีอยู่แล้ว ไม่เพิ่มใหม่
+        const allEmpIds = validRows.map(r => String(r.emp_id).trim())
+        const { data: existing } = await supabase.from('employees').select('emp_id').in('emp_id', allEmpIds)
+        const existingSet = new Set((existing ?? []).map(e => e.emp_id))
 
-        const { data: empData, error } = await supabase
-          .from('employees').upsert(records, { onConflict: 'emp_id' }).select()
-        if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
-        if (empData?.length) {
-          for (const e of empData)
-            await insertEmployeeLog({ emp_id: e.emp_id, action: 'imported', detail: 'อัปเดตจาก Excel', performed_by: userId })
-          setUpdatedCount(empData.length)
+        const notFound = validRows.filter(r => !existingSet.has(String(r.emp_id).trim()))
+        setSkippedCount(notFound.length)
+        setSkippedNos(notFound.map(r => String(r.emp_id).trim()))
+
+        const updateRows = validRows.filter(r => existingSet.has(String(r.emp_id).trim()))
+        if (!updateRows.length) { setImporting(false); setDone(true); return }
+
+        let count = 0
+        for (const r of updateRows) {
+          const empId = String(r.emp_id).trim()
+          const payload: Record<string, unknown> = {}
+          if (r.full_name_th) payload.full_name_th = String(r.full_name_th).trim()
+          if (r.full_name_en !== undefined) payload.full_name_en = r.full_name_en ? String(r.full_name_en).trim() : null
+          if (r.nickname !== undefined) payload.nickname = r.nickname ? String(r.nickname).trim() : null
+          if (r.department !== undefined) payload.department = r.department ? String(r.department).trim() : null
+          if (r.position !== undefined) payload.position = r.position ? String(r.position).trim() : null
+          if (r.branch !== undefined) payload.branch = r.branch ? String(r.branch).trim() : null
+          if (r.emp_email !== undefined) payload.emp_email = r.emp_email ? String(r.emp_email).trim() : null
+          if (r.phone !== undefined) payload.phone = r.phone ? String(r.phone).trim() : null
+          if (r.status) payload.status = VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active'
+
+          const { error } = await supabase.from('employees').update(payload).eq('emp_id', empId)
+          if (!error) {
+            await insertEmployeeLog({ emp_id: empId, action: 'imported', detail: 'อัปเดตจาก Excel', performed_by: userId })
+            count++
+          }
         }
+        setUpdatedCount(count)
       }
     }
 
@@ -295,8 +306,8 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Mode selector — เฉพาะ assets */}
-          {type === 'assets' && !done && (
+          {/* Mode selector */}
+          {!done && (
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => { setImportMode('add'); reset() }}
                 className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${importMode === 'add' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
@@ -310,11 +321,15 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
           )}
 
           {/* Mode description */}
-          {type === 'assets' && !done && (
+          {!done && (
             <p className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2">
-              {importMode === 'add'
-                ? '📥 เพิ่ม Asset ใหม่เท่านั้น — Asset No. ที่มีอยู่แล้วจะถูกข้าม'
-                : '🔄 อัปเดตข้อมูล Asset ที่มีอยู่แล้วตาม Asset No. — ไม่เพิ่ม Asset ใหม่'}
+              {type === 'assets'
+                ? importMode === 'add'
+                  ? '📥 เพิ่ม Asset ใหม่เท่านั้น — Asset No. ที่มีอยู่แล้วจะถูกข้าม'
+                  : '🔄 อัปเดตข้อมูล Asset ที่มีอยู่แล้วตาม Asset No. — ไม่เพิ่ม Asset ใหม่'
+                : importMode === 'add'
+                  ? '📥 เพิ่มพนักงานใหม่เท่านั้น — รหัสพนักงานที่มีอยู่แล้วจะถูกข้าม'
+                  : '🔄 อัปเดตข้อมูลพนักงานที่มีอยู่แล้วตามรหัสพนักงาน'}
             </p>
           )}
 
@@ -373,7 +388,10 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
               {skippedNos.length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
                   <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
-                    {importMode === 'update' ? 'Asset No. ที่ไม่พบในระบบ' : 'Asset No. ที่ข้ามเพราะมีอยู่แล้ว'} ({skippedNos.length}):
+                    {type === 'assets'
+                      ? importMode === 'update' ? 'Asset No. ที่ไม่พบในระบบ' : 'Asset No. ที่ข้ามเพราะมีอยู่แล้ว'
+                      : importMode === 'update' ? 'รหัสพนักงานที่ไม่พบในระบบ (ไม่ได้เพิ่ม)' : 'รหัสพนักงานที่ข้ามเพราะมีอยู่แล้ว'
+                    } ({skippedNos.length}):
                   </p>
                   <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                     {skippedNos.map(no => (

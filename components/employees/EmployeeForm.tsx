@@ -21,12 +21,15 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
     phone: initial?.phone ?? '', status: initial?.status ?? 'active',
   })
   const [saving, setSaving] = useState(false)
+  const [dupError, setDupError] = useState('')
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (k === 'emp_id') setDupError('')
     setForm(f => ({ ...f, [k]: e.target.value }))
+  }
 
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true)
+    e.preventDefault(); setSaving(true); setDupError('')
     const supabase = createClient()
     const userId = (await supabase.auth.getUser()).data.user?.id
     const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v || null]))
@@ -39,6 +42,11 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
         detail: `แก้ไขข้อมูล ${form.full_name_th}`, performed_by: userId,
       })
     } else {
+      const { data: existing } = await supabase.from('employees').select('emp_id').eq('emp_id', form.emp_id).maybeSingle()
+      if (existing) {
+        setDupError(`รหัสพนักงาน "${form.emp_id}" มีอยู่ในระบบแล้ว`)
+        setSaving(false); return
+      }
       await supabase.from('employees').insert(payload)
       await insertEmployeeLog({
         emp_id: form.emp_id, action: 'created',
@@ -57,7 +65,11 @@ export default function EmployeeForm({ initial, onDone, onClose }: Props) {
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><X size={18} /></button>
         <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-4">{isEdit ? 'แก้ไข' : 'เพิ่ม'}พนักงาน</h3>
         <form onSubmit={submit} className="grid grid-cols-2 gap-3">
-          <div><label className={lbl}>รหัสพนักงาน *</label><input value={form.emp_id} onChange={set('emp_id')} required disabled={isEdit} className={inp} /></div>
+          <div>
+            <label className={lbl}>รหัสพนักงาน *</label>
+            <input value={form.emp_id} onChange={set('emp_id')} required disabled={isEdit} className={inp} />
+            {dupError && <p className="text-xs text-red-500 mt-1">{dupError}</p>}
+          </div>
           <div><label className={lbl}>ชื่อ TH *</label><input value={form.full_name_th} onChange={set('full_name_th')} required className={inp} /></div>
           <div><label className={lbl}>ชื่อ EN</label><input value={form.full_name_en} onChange={set('full_name_en')} className={inp} /></div>
           <div><label className={lbl}>ชื่อเล่น</label><input value={form.nickname} onChange={set('nickname')} className={inp} /></div>
