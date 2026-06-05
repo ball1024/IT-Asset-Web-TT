@@ -137,6 +137,10 @@ export default function Sidebar({ open, onClose }: Props) {
         <div>
           <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset</h1>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Management System</p>
+          <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-1 leading-tight">
+            Thanachote Jantama<br />
+            IT Support · Teethtalk · v1.0.1
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />
