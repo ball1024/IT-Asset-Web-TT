@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from './Sidebar'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { Menu, User, ChevronDown } from 'lucide-react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { useRole } from '@/hooks/useRole'
 
@@ -88,7 +89,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <Link href="/" className="flex items-center gap-2 mr-auto">
-          <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-10 w-auto object-contain" />
+          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={120} height={40} className="h-10 w-auto object-contain" />
           <span className="font-bold text-indigo-700 dark:text-indigo-400 text-lg hidden sm:block">IT Asset Teethtalk</span>
         </Link>
 

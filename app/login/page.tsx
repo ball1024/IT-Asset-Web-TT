@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -55,7 +56,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-7">
-          <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-16 w-auto object-contain mb-3" />
+          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={180} height={64} className="h-16 w-auto object-contain mb-3" />
           <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset Management</h1>
           <p className="text-gray-400 dark:text-gray-500 text-xs mt-0.5">Sign in to continue</p>
         </div>
