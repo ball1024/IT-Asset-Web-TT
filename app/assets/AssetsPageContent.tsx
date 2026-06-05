@@ -1,14 +1,16 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSearchParams, useRouter } from 'next/navigation'
 import type { Asset } from '@/lib/supabase'
+import { getAssets } from '@/services/assetService'
+import { getVendors } from '@/services/vendorService'
 import { searchAssets } from '@/lib/fuzzySearch'
 import AssetTable from '@/components/assets/AssetTable'
 import ImportExcelModal from '@/components/assets/ImportExcelModal'
 import BarcodeScannerModal from '@/components/assets/BarcodeScannerModal'
 import { useRole } from '@/hooks/useRole'
 import { canImportExport } from '@/lib/permissions'
-import { Search, Download, Upload, ScanLine } from 'lucide-react'
+import { Search, Download, Upload, ScanLine, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
@@ -19,26 +21,42 @@ const STATUSES = [
 
 export default function AssetsPageContent() {
   const { role, userId } = useRole()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('ทั้งหมด')
   const [status, setStatus] = useState('')
   const [dept, setDept] = useState('')
+  const [vendorFilter, setVendorFilter] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+
+  // vendor filter จาก query param (จาก Vendor page)
+  const vendorIdParam   = searchParams.get('vendor_id') ?? ''
+  const vendorNameParam = searchParams.get('vendor_name') ?? ''
+
+  // sync query param → dropdown เมื่อมาจากหน้า Vendors
+  useEffect(() => {
+    if (vendorIdParam) setVendorFilter(vendorIdParam)
+  }, [vendorIdParam])
 
   const onScanResult = useCallback((value: string, _target: 'asset_no' | 'serial_no') => {
     setQ(value)
     setShowScanner(false)
   }, [])
 
+  const [vendors, setVendors] = useState<{ id: string; name: string }[]>([])
+
   const load = () => {
-    createClient().from('assets').select('*, employees(full_name_th, full_name_en, department)').order('created_at', { ascending: false })
-      .then(({ data }) => { setAssets(data as Asset[] ?? []); setLoading(false) })
+    getAssets().then(data => { setAssets(data); setLoading(false) })
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    getVendors().then(data => setVendors(data))
+  }, [])
 
   const depts = useMemo(() => {
     const s = new Set(assets.map(a => (a.employees as any)?.department).filter(Boolean))
@@ -50,8 +68,9 @@ export default function AssetsPageContent() {
     if (cat !== 'ทั้งหมด') list = list.filter(a => a.category === cat)
     if (status) list = list.filter(a => a.status === status)
     if (dept && dept !== 'ทุกแผนก') list = list.filter(a => (a.employees as any)?.department === dept)
+    if (vendorFilter) list = list.filter(a => (a as any).vendor_id === vendorFilter)
     return list
-  }, [assets, q, cat, status, dept])
+  }, [assets, q, cat, status, dept, vendorFilter])
 
   const exportXlsx = () => {
     const data = filtered.map(a => ({
@@ -115,6 +134,10 @@ export default function AssetsPageContent() {
           </select>
           <select value={dept} onChange={e => setDept(e.target.value)} className={sel}>
             {depts.map(d => <option key={d}>{d}</option>)}
+          </select>
+          <select value={vendorFilter} onChange={e => { setVendorFilter(e.target.value); router.push('/assets') }} className={sel}>
+            <option value="">ทุก Vendor</option>
+            {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </div>
 

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, PlusCircle, ClipboardList,
-  Users, ShieldCheck, Settings, LogOut, X,
+  Users, ShieldCheck, Settings, LogOut, X, KeyRound, Store,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
 import { canEdit, canDelete, canViewMembers, canManageEmployees, canViewMembers as _cv, canAccessSettings } from '@/lib/permissions'
@@ -75,8 +75,16 @@ export default function Sidebar({ open, onClose }: Props) {
           {canManageEmployees(role) && (
             <Link href="/employees" onClick={onClose} className={active('/employees')}><Users size={18} /> Employees</Link>
           )}
+          {canEdit(role) && (
+            <Link href="/vendors" onClick={onClose} className={active('/vendors')}><Store size={18} /> Vendors</Link>
+          )}
           {canViewMembers(role) && (
             <Link href="/members" onClick={onClose} className={active('/members')}><ShieldCheck size={18} /> Members</Link>
+          )}
+          {canViewMembers(role) && (
+            <Link href="/license-requests" onClick={onClose} className={active('/license-requests')}>
+              <KeyRound size={18} /> License Requests
+            </Link>
           )}
           {canAccessSettings(role) && (
             <Link href="/settings" onClick={onClose} className={active('/settings')}><Settings size={18} /> Settings</Link>

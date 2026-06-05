@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Asset, Employee } from '@/lib/supabase'
+import type { Asset, Employee, Vendor } from '@/lib/supabase'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import { compressImage } from '@/lib/compressImage'
 import { assetImageKey, getNextImageIndex } from '@/lib/r2'
@@ -20,9 +20,10 @@ interface Props {
   initial?: Partial<Asset>
   userId: string
   onSave?: (id: string) => void
+  onCancel?: () => void
 }
 
-export default function AssetForm({ initial, userId, onSave }: Props) {
+export default function AssetForm({ initial, userId, onSave, onCancel }: Props) {
   const router = useRouter()
   const isEdit = !!initial?.id
   const fileRef = useRef<HTMLInputElement>(null)
@@ -40,12 +41,19 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     purchase_date: initial?.purchase_date ?? '',
     received_date: initial?.received_date ?? '',
     original_price: initial?.original_price?.toString() ?? '',
+    vendor_id: initial?.vendor_id ?? '',
     notes: initial?.notes ?? '',
     emp_id: initial?.emp_id ?? '',
     department: (initial as any)?.department ?? '',
   })
 
   const [deptFromEmp, setDeptFromEmp] = useState(true)
+  const [vendors, setVendors] = useState<Vendor[]>([])
+
+  useEffect(() => {
+    createClient().from('vendors').select('id, name, phone, email').order('name')
+      .then(({ data }) => setVendors(data ?? []))
+  }, [])
 
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [allEmployees, setAllEmployees] = useState<Employee[]>([])
@@ -186,6 +194,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
       purchase_date: form.purchase_date || null,
       received_date: form.received_date || null,
       original_price: form.original_price ? parseFloat(form.original_price) : null,
+      vendor_id: form.vendor_id || null,
       department: form.department || null,
     }
 
@@ -194,16 +203,19 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
         asset_no: 'Asset No.', name: 'ชื่อ', category: 'ประเภท', brand: 'ยี่ห้อ',
         model: 'รุ่น', serial_no: 'Serial No.', status: 'สถานะ', location: 'ที่ตั้ง',
         purchase_date: 'วันที่ซื้อ', received_date: 'วันที่ได้รับ',
-        original_price: 'มูลค่าเริ่มต้น', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
+        original_price: 'มูลค่าเริ่มต้น', vendor_id: 'Vendor', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
       }
       const DATE_FIELDS = new Set(['purchase_date', 'received_date'])
       const STATUS_LABELS: Record<string, string> = {
         active: 'ใช้งาน', available: 'ว่าง', repair: 'ซ่อม', storage: 'Stock',
       }
+      // map vendor_id → vendor name
+      const vendorMap = Object.fromEntries(vendors.map(v => [v.id, v.name]))
       const formatVal = (k: string, v: string) => {
         if (!v) return '(ว่าง)'
         if (DATE_FIELDS.has(k)) return new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
         if (k === 'status') return STATUS_LABELS[v] ?? v
+        if (k === 'vendor_id') return vendorMap[v] ?? v
         return v
       }
       const normalize = (k: string, v: string) => DATE_FIELDS.has(k) ? v.slice(0, 10) : v
@@ -428,6 +440,25 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           <p className={secLabel}>มูลค่าและวันที่ซื้อ</p>
         </div>
 
+        {/* Vendor */}
+        <div className="md:col-span-2">
+          <label className={lbl}>Vendor / ซื้อจาก</label>
+          <select value={form.vendor_id} onChange={e => setForm(f => ({ ...f, vendor_id: e.target.value }))} className={inp}>
+            <option value="">— ไม่ระบุ —</option>
+            {vendors.map(v => (
+              <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ''}</option>
+            ))}
+          </select>
+          {form.vendor_id && (() => {
+            const v = vendors.find(v => v.id === form.vendor_id)
+            return v?.email ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
+                📧 {v.email}
+              </p>
+            ) : null
+          })()}
+        </div>
+
         {/* Original Price */}
         <div>
           <label className={lbl}>มูลค่าทรัพย์สิน (บาท)</label>
@@ -508,7 +539,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
 
         {/* Buttons */}
         <div className="md:col-span-2 flex gap-3 justify-end">
-          <button type="button" onClick={() => router.back()}
+          <button type="button" onClick={() => onCancel ? onCancel() : router.back()}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             ยกเลิก
           </button>
