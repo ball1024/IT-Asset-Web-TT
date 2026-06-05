@@ -156,7 +156,7 @@ export default function ProfileContent() {
         />
       )}
 
-      <div className="max-w-xl space-y-6">
+      <div className="max-w-xl mx-auto space-y-6">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">ข้อมูลผู้ใช้</h2>
 
         {/* Avatar + Role */}

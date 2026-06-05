@@ -25,7 +25,7 @@ export default function NewAssetPage() {
       {showImport && userId && (
         <ImportExcelModal type="assets" userId={userId} onDone={() => { setShowImport(false); router.push('/assets') }} onClose={() => setShowImport(false)} />
       )}
-      <div className="max-w-2xl">
+      <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Add Asset</h2>
           <button onClick={() => setShowImport(true)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Import Excel</button>

@@ -133,7 +133,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
           onDone={() => { setShowTransfer(false); load() }} />
       )}
 
-      <div className="max-w-5xl space-y-4">
+      <div className="max-w-5xl mx-auto space-y-4">
         {/* Breadcrumb + actions */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
