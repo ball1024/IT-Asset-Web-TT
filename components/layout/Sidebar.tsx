@@ -134,14 +134,13 @@ export default function Sidebar({ open, onClose }: Props) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 mb-8">
-        <div>
-          <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset</h1>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Management System</p>
-          <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-1 leading-tight">
-            Thanachote Jantama<br />
-            IT Support · Teethtalk · v1.0.1
-          </p>
-        </div>
+        <Link href="/" onClick={onClose} className="flex items-center gap-2">
+          <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-9 w-auto object-contain" />
+          <div>
+            <h1 className="text-base font-bold text-indigo-700 dark:text-indigo-400 leading-tight">IT Asset</h1>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">Management System</p>
+          </div>
+        </Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <button onClick={onClose} className="md:hidden text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1">
@@ -151,6 +150,9 @@ export default function Sidebar({ open, onClose }: Props) {
       </div>
       {navLinks}
       {userMenu}
+      <p className="text-[10px] text-gray-300 dark:text-gray-600 text-center mt-3 leading-tight">
+        © {new Date().getFullYear()} Thanachote Jantama<br />IT Support · Teethtalk
+      </p>
     </div>
   )
 
