@@ -247,8 +247,17 @@ export default function LogsContent() {
                         {log.type === 'asset' ? 'Asset' : 'พนักงาน'}
                       </span>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${a.color}`}>{a.label}</span>
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{log.title}</span>
-                      {log.sub && <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{log.sub}</span>}
+                      {log.type === 'asset' ? (
+                        <>
+                          {log.sub && <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300 font-mono">{log.sub}</span>}
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{log.title}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{log.title}</span>
+                          {log.sub && <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{log.sub}</span>}
+                        </>
+                      )}
                     </div>
                     {log.detail && log.action !== 'created' && log.action !== 'imported' && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{log.detail}</p>
