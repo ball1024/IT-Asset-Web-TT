@@ -10,7 +10,30 @@ import AssetForm from '@/components/assets/AssetForm'
 import EmployeeProfilePopup from '@/components/assets/EmployeeProfilePopup'
 import TransferModal from '@/components/assets/TransferModal'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle } from 'lucide-react'
+import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle, TrendingDown } from 'lucide-react'
+
+function calcDepreciation(originalPrice: number, receivedDate: string) {
+  const received = new Date(receivedDate)
+  const now = new Date()
+
+  // นับเดือนจริงโดยคำนึงถึงวัน
+  let elapsedMonths = (now.getFullYear() - received.getFullYear()) * 12 + (now.getMonth() - received.getMonth())
+  if (now.getDate() < received.getDate()) elapsedMonths -= 1
+  elapsedMonths = Math.max(0, elapsedMonths)
+
+  // อายุเครื่องจริง (ไม่จำกัด 60)
+  const ageYears = Math.floor(elapsedMonths / 12)
+  const ageMonths = elapsedMonths % 12
+  const ageLabel = [ageYears > 0 ? `${ageYears} ปี` : '', ageMonths > 0 ? `${ageMonths} เดือน` : ''].filter(Boolean).join(' ') || 'น้อยกว่า 1 เดือน'
+
+  // ค่าเสื่อมใช้เดือนจำกัดที่ 60
+  const depMonths = Math.min(elapsedMonths, 60)
+  const monthly = originalPrice / 60
+  const bookValue = Math.max(0, originalPrice - depMonths * monthly)
+  const pct = (bookValue / originalPrice) * 100
+
+  return { bookValue, elapsedMonths, depMonths, monthly, ageLabel, pct }
+}
 
 const R2_PUBLIC = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
 
@@ -37,6 +60,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   imported:      { label: 'นำเข้าจาก Import',          color: 'bg-gray-400' },
   deleted:       { label: 'ลบ Asset',                  color: 'bg-red-600' },
   unassigned:    { label: 'เอาผู้ใช้งานออก',           color: 'bg-orange-400' },
+  received:      { label: 'รับเครื่อง',                color: 'bg-cyan-500' },
 }
 
 export default function AssetDetailContent({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
@@ -199,6 +223,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                     ['รุ่น', asset.model],
                     ['Serial No.', asset.serial_no],
                     ['วันที่ซื้อ', asset.purchase_date ? new Date(asset.purchase_date).toLocaleDateString('th-TH') : null],
+                    ['วันที่ได้รับ', asset.received_date ? new Date(asset.received_date).toLocaleDateString('th-TH') : null],
                     ['ที่ตั้ง', asset.location],
                     ['รหัสพนักงาน', asset.emp_id],
                     ['แผนก', (asset as any).department],
@@ -373,8 +398,15 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                             {log.action === 'assigned' && log.detail && (
                               <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">({log.detail})</span>
                             )}
-                            {log.action === 'updated' && log.detail && (
+                            {log.action === 'received' && log.detail && (
                               <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">· {log.detail}</span>
+                            )}
+                            {log.action === 'updated' && log.detail && (
+                              <ul className="mt-1 space-y-0.5">
+                                {log.detail.split('\n').map((line, i) => (
+                                  <li key={i} className="text-xs text-gray-500 dark:text-gray-400 font-normal">{line}</li>
+                                ))}
+                              </ul>
                             )}
                             {log.action === 'unassigned' && log.detail && (
                               <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">· {log.detail}</span>
@@ -395,6 +427,69 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                   {!logs.length && <p className="text-gray-400 dark:text-gray-500 text-xs">ยังไม่มี activity</p>}
                 </div>
               </div>
+
+              {/* มูลค่าทรัพย์สิน */}
+              {asset.original_price != null && asset.original_price > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 mb-3">
+                    <TrendingDown size={14} /> มูลค่าทรัพย์สิน
+                  </p>
+                  {(() => {
+                    const baseDate = asset.purchase_date
+                    if (!baseDate) {
+                      return (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 dark:text-gray-500">มูลค่าเริ่มต้น</span>
+                            <span className="font-semibold text-gray-800 dark:text-gray-100">
+                              {asset.original_price.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-500">กรุณากรอกวันที่ซื้อเพื่อคำนวณค่าเสื่อม</p>
+                        </div>
+                      )
+                    }
+                    const dep = calcDepreciation(asset.original_price, baseDate)
+                    return (
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400 dark:text-gray-500">มูลค่าเริ่มต้น</span>
+                          <span className="font-semibold text-gray-700 dark:text-gray-300">
+                            {asset.original_price.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 px-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+                          <span className="text-indigo-600 dark:text-indigo-400 font-medium">อายุเครื่อง</span>
+                          <span className="font-bold text-indigo-700 dark:text-indigo-300">{dep.ageLabel}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400 dark:text-gray-500">ค่าเสื่อม/เดือน</span>
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {dep.monthly.toLocaleString('th-TH', { maximumFractionDigits: 2 })} ฿
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                          <div className="flex justify-between mb-1.5">
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">Book Valued ปัจจุบัน</span>
+                            <span className={`font-bold text-base ${dep.bookValue > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                              {dep.bookValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${dep.pct > 50 ? 'bg-green-500' : dep.pct > 20 ? 'bg-amber-400' : 'bg-red-400'}`}
+                              style={{ width: `${dep.pct}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">
+                            เหลือ {dep.pct.toFixed(1)}% · ตัดค่าเสื่อมไปแล้ว {dep.depMonths}/60 เดือน
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
 
               {/* ข้อมูลระบบ */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">

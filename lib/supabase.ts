@@ -41,6 +41,8 @@ export interface Asset {
   status: 'active' | 'available' | 'repair' | 'storage'
   location?: string
   purchase_date?: string
+  received_date?: string
+  original_price?: number
   notes?: string
   images: string[]
   emp_id?: string
