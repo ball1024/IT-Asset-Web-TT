@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { BrowserMultiFormatReader } from '@zxing/browser'
-import { X, Loader2, CameraOff } from 'lucide-react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import { X, Loader2, CameraOff, RefreshCw } from 'lucide-react'
 
 interface Props {
   target: 'asset_no' | 'serial_no'
@@ -9,120 +9,171 @@ interface Props {
   onClose: () => void
 }
 
+const SCAN_FORMATS = [
+  // QR & 2D
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
+  Html5QrcodeSupportedFormats.PDF_417,
+  // 1D Barcodes
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.CODABAR,
+]
+
+const SCANNER_ID = 'html5qr-scanner-region'
+
 export default function BarcodeScannerModal({ target, onResult, onClose }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
   const scannedRef = useRef(false)
   const [status, setStatus] = useState<'loading' | 'scanning' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
 
-  const handleClose = () => {
-    try { BrowserMultiFormatReader.releaseAllStreams() } catch {}
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop()
+        scannerRef.current.clear()
+      } catch {}
+      scannerRef.current = null
+    }
+  }
+
+  const handleClose = async () => {
+    await stopScanner()
     onClose()
   }
 
-  useEffect(() => {
+  const startScanner = async () => {
+    setStatus('loading')
+    setErrorMsg('')
     scannedRef.current = false
-    const reader = new BrowserMultiFormatReader()
 
-    const constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    }
+    await stopScanner()
 
-    reader
-      .decodeFromConstraints(constraints, videoRef.current!, (result, err) => {
-        if (result && !scannedRef.current) {
+    // รอให้ DOM พร้อม
+    await new Promise(r => setTimeout(r, 100))
+
+    const scanner = new Html5Qrcode(SCANNER_ID, {
+      formatsToSupport: SCAN_FORMATS,
+      verbose: false,
+    })
+    scannerRef.current = scanner
+
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 15,
+          qrbox: (w, h) => {
+            // กรอบ scan: ถ้าหน้าจอแคบ (มือถือ) ให้กรอบกว้าง, ถ้าจอใหญ่ก็ scale ลง
+            const minEdge = Math.min(w, h)
+            const size = Math.floor(minEdge * 0.75)
+            // Barcode มักแนวนอน → กว้างกว่าสูง
+            return { width: size, height: Math.floor(size * 0.5) }
+          },
+          aspectRatio: 1.7778, // 16:9
+          disableFlip: false,
+        },
+        (decodedText) => {
+          if (scannedRef.current) return
           scannedRef.current = true
-          try { BrowserMultiFormatReader.releaseAllStreams() } catch {}
-          onResult(result.getText(), target)
-          onClose()
-          return
+          stopScanner().then(() => {
+            onResult(decodedText, target)
+            onClose()
+          })
+        },
+        () => {
+          // scan ยังไม่เจอ — ปกติ ไม่ต้องทำอะไร
         }
-        // IgnoreNotFoundException — เกิดทุก frame ที่ยังไม่เจอบาร์โค้ด ไม่ใช่ error จริง
-        if (err && err.name !== 'NotFoundException') {
-          console.warn('[Scanner]', err)
-        }
-      })
-      .then(() => {
-        setStatus('scanning')
-      })
-      .catch((err: unknown) => {
-        const e = err as DOMException | Error
-        let msg = 'ไม่สามารถเปิดกล้องได้'
-        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-          msg = 'กรุณาอนุญาตการเข้าถึงกล้องในการตั้งค่าเบราว์เซอร์'
-        } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
-          msg = 'ไม่พบกล้องบนอุปกรณ์นี้'
-        } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
-          msg = 'กล้องกำลังถูกใช้งานโดยแอปอื่น'
-        } else if (e.name === 'OverconstrainedError') {
-          msg = 'กล้องไม่รองรับการตั้งค่าที่ต้องการ'
-        }
-        setErrorMsg(msg)
-        setStatus('error')
-      })
-
-    return () => {
-      try { BrowserMultiFormatReader.releaseAllStreams() } catch {}
+      )
+      setStatus('scanning')
+    } catch (err: unknown) {
+      const e = err as DOMException | Error
+      let msg = 'ไม่สามารถเปิดกล้องได้'
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        msg = 'กรุณาอนุญาตการเข้าถึงกล้องในการตั้งค่าเบราว์เซอร์'
+      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+        msg = 'ไม่พบกล้องบนอุปกรณ์นี้'
+      } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
+        msg = 'กล้องกำลังถูกใช้งานโดยแอปอื่น กรุณาปิดแอปอื่นแล้วลองใหม่'
+      }
+      setErrorMsg(msg)
+      setStatus('error')
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }
+
+  useEffect(() => {
+    startScanner()
+    return () => { stopScanner() }
+  }, [retryCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
-      {/* Close button */}
-      <div className="absolute top-4 right-4 z-10">
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-safe-top pt-4 pb-2">
+        <p className="text-white text-sm font-medium">
+          สแกน {target === 'asset_no' ? 'Asset No. (QR Code)' : 'Serial No. (Barcode)'}
+        </p>
         <button
           onClick={handleClose}
-          className="text-white bg-black/50 p-2 rounded-full"
+          className="text-white bg-white/20 p-2 rounded-full"
           aria-label="ปิด"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
-      {/* Label */}
-      <p className="text-white text-sm absolute top-4 left-4 z-10">
-        สแกน {target === 'asset_no' ? 'Asset No.' : 'Serial No.'}
-      </p>
+      {/* Scanner area — html5-qrcode จะ inject video เข้า div นี้ */}
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+        <div
+          id={SCANNER_ID}
+          className="w-full max-w-lg"
+          style={{ minHeight: 300 }}
+        />
 
-      {/* Video — playsInline สำคัญมากสำหรับ iOS */}
-      <video
-        ref={videoRef}
-        className="w-full max-w-md aspect-video object-cover rounded-lg"
-        playsInline
-        autoPlay
-        muted
-      />
+        {/* Loading overlay */}
+        {status === 'loading' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black gap-3">
+            <Loader2 size={40} className="text-white animate-spin" />
+            <p className="text-white text-sm">กำลังเปิดกล้อง...</p>
+          </div>
+        )}
 
-      {/* Loading overlay */}
-      {status === 'loading' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 gap-3">
-          <Loader2 size={40} className="text-white animate-spin" />
-          <p className="text-white text-sm">กำลังเปิดกล้อง...</p>
-        </div>
-      )}
+        {/* Error overlay */}
+        {status === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black gap-4 px-8 text-center">
+            <CameraOff size={48} className="text-red-400" />
+            <p className="text-white text-base">{errorMsg}</p>
+            <button
+              onClick={() => setRetryCount(c => c + 1)}
+              className="flex items-center gap-2 px-6 py-2 bg-white text-black rounded-full text-sm font-medium"
+            >
+              <RefreshCw size={16} />
+              ลองใหม่
+            </button>
+            <button
+              onClick={handleClose}
+              className="text-white/60 text-sm underline"
+            >
+              ปิด
+            </button>
+          </div>
+        )}
+      </div>
 
-      {/* Error overlay */}
-      {status === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-4 px-6 text-center">
-          <CameraOff size={48} className="text-red-400" />
-          <p className="text-white text-base font-medium">{errorMsg}</p>
-          <button
-            onClick={handleClose}
-            className="mt-2 px-6 py-2 bg-white text-black rounded-full text-sm font-medium"
-          >
-            ปิด
-          </button>
-        </div>
-      )}
-
-      {/* Scan guide frame */}
+      {/* Hint */}
       {status === 'scanning' && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-64 h-32 border-2 border-white rounded-lg opacity-70" />
+        <div className="px-4 pb-safe-bottom pb-6 pt-3 text-center">
+          <p className="text-white/60 text-xs">
+            จัดให้บาร์โค้ด / QR Code อยู่กลางกรอบ
+          </p>
         </div>
       )}
     </div>
