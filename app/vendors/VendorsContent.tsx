@@ -248,7 +248,7 @@ function ImportModal({
   const run = async () => {
     if (!rows.length) return;
     setImporting(true);
-    const supabase = createClient();
+    const supabase = createClient() as any;
     let added = 0,
       updated = 0,
       skipped = 0;
@@ -257,7 +257,7 @@ function ImportModal({
       .from("vendors")
       .select("id, name");
     const nameMap = Object.fromEntries(
-      (existing ?? []).map((v) => [v.name.trim().toLowerCase(), v.id]),
+      (existing ?? []).map((v: any) => [v.name.trim().toLowerCase(), v.id]),
     );
 
     for (const row of rows) {
@@ -685,3 +685,7 @@ export default function VendorsContent() {
     </div>
   );
 }
+function createClient() {
+  throw new Error("Function not implemented.");
+}
+
