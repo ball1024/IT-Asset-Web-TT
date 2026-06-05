@@ -59,14 +59,6 @@ export default function TransferModal({ asset, onDone, onClose, userId, mode = '
       })
     }
 
-    if (receivedDate) {
-      await insertAssetLog({
-        asset_id: asset.id, action: 'received',
-        detail: `${dateLabel} · ${selected.full_name_th} (${selected.emp_id})`,
-        performed_by: userId,
-      })
-    }
-
     setSaving(false)
     onDone()
   }

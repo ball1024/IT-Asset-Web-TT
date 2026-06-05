@@ -1,5 +1,5 @@
 'use client'
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Asset, AssetLog, Employee } from '@/lib/supabase'
 import { insertAssetLog } from '@/lib/logging'
@@ -10,7 +10,7 @@ import AssetForm from '@/components/assets/AssetForm'
 import EmployeeProfilePopup from '@/components/assets/EmployeeProfilePopup'
 import TransferModal from '@/components/assets/TransferModal'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle, TrendingDown } from 'lucide-react'
+import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle, TrendingDown, Camera, Upload } from 'lucide-react'
 
 function calcDepreciation(originalPrice: number, receivedDate: string) {
   const received = new Date(receivedDate)
@@ -63,6 +63,67 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   received:      { label: 'รับเครื่อง',                color: 'bg-cyan-500' },
 }
 
+function GalleryLightbox({ images, index, r2Public, onClose, onChange }: {
+  images: string[]; index: number; r2Public: string
+  onClose: () => void; onChange: (i: number) => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowRight') onChange(Math.min(index + 1, images.length - 1))
+      if (e.key === 'ArrowLeft') onChange(Math.max(index - 1, 0))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [index, images.length])
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center" onClick={onClose}>
+      {/* ปุ่มปิด */}
+      <button className="absolute top-4 right-4 text-white/70 hover:text-white p-2" onClick={onClose}>
+        <X size={24} />
+      </button>
+      {/* counter */}
+      <p className="absolute top-5 left-1/2 -translate-x-1/2 text-white/60 text-sm">{index + 1} / {images.length}</p>
+
+      {/* ปุ่มซ้าย */}
+      {index > 0 && (
+        <button onClick={e => { e.stopPropagation(); onChange(index - 1) }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors">
+          <ChevronRight size={24} className="rotate-180" />
+        </button>
+      )}
+
+      {/* รูปหลัก */}
+      <img
+        src={`${r2Public}/${images[index]}`}
+        className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg select-none"
+        onClick={e => e.stopPropagation()}
+      />
+
+      {/* ปุ่มขวา */}
+      {index < images.length - 1 && (
+        <button onClick={e => { e.stopPropagation(); onChange(index + 1) }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors">
+          <ChevronRight size={24} />
+        </button>
+      )}
+
+      {/* thumbnail strip */}
+      {images.length > 1 && (
+        <div className="absolute bottom-6 flex gap-2" onClick={e => e.stopPropagation()}>
+          {images.map((img, i) => (
+            <button key={i} onClick={() => onChange(i)}
+              className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${i === index ? 'border-white' : 'border-transparent opacity-50 hover:opacity-80'}`}>
+              <img src={`${r2Public}/${img}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AssetDetailContent({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
   const { id } = use(paramsPromise)
   const { role, userId } = useRole()
@@ -73,7 +134,9 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
   const [showTransfer, setShowTransfer] = useState(false)
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<number | null>(null)
+  const uploadRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const [showMore, setShowMore] = useState(false)
   const [alertDialog, setAlertDialog] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
 
@@ -105,6 +168,26 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
     })
   }
 
+  const handleUploadFiles = async (files: FileList) => {
+    if (!asset) return
+    const { compressImage } = await import('@/lib/compressImage')
+    const { assetImageKey, getNextImageIndex } = await import('@/lib/r2')
+    const supabase = createClient()
+    const newKeys = [...asset.images]
+    for (const file of Array.from(files)) {
+      if (newKeys.length >= 5) break
+      const compressed = await compressImage(file)
+      const idx = await getNextImageIndex(newKeys)
+      const key = assetImageKey(asset.asset_no, idx)
+      const { url } = await fetch('/api/r2/presign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }).then(r => r.json())
+      await fetch(url, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
+      newKeys.push(key)
+      await insertAssetLog({ asset_id: asset.id, action: 'image_added', detail: key, performed_by: userId })
+    }
+    await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
+    await load()
+  }
+
   if (loading) return <div className="text-gray-400 dark:text-gray-500 text-sm p-6">Loading...</div>
   if (!asset) return <div className="text-gray-400 dark:text-gray-500 text-sm p-6">ไม่พบ Asset</div>
 
@@ -113,12 +196,15 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
 
   return (
     <>
-      {/* Lightbox */}
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white"><X size={24} /></button>
-          <img src={`${R2_PUBLIC}/${lightbox}`} className="max-w-full max-h-full rounded-lg" />
-        </div>
+      {/* Gallery Lightbox */}
+      {lightbox !== null && asset && (
+        <GalleryLightbox
+          images={asset.images}
+          index={lightbox}
+          r2Public={R2_PUBLIC}
+          onClose={() => setLightbox(null)}
+          onChange={setLightbox}
+        />
       )}
 
       {alertDialog && (
@@ -160,13 +246,60 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
       <div className="max-w-6xl mx-auto space-y-4">
 
         {/* ── Header bar ── */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 px-5 py-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            {/* left: breadcrumb + title */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 px-4 py-3 sm:px-5 sm:py-4">
+
+          {/* Mobile: 2 rows */}
+          <div className="sm:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => router.push('/assets')}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm font-medium">
+                <span>Asset All</span>
+                <ChevronRight size={13} />
+              </button>
+              <div className="flex items-center gap-2">
+                {canTransfer(role) && !editing && (
+                  <button onClick={() => setShowTransfer(true)}
+                    className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-lg">
+                    <ArrowLeftRight size={15} />
+                  </button>
+                )}
+                {canEdit(role) && (
+                  <button onClick={() => setEditing(e => !e)}
+                    className="p-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Pencil size={15} />
+                  </button>
+                )}
+                {canDelete(role) && (
+                  <button onClick={del}
+                    className="p-2 border border-red-200 dark:border-red-800 text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-2xl shrink-0">
+                {CAT_ICON[asset.category] ?? '📦'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-mono font-semibold text-indigo-500 dark:text-indigo-400">{asset.asset_no || '—'}</p>
+                <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 truncate">{asset.name}</h2>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">{asset.category}</span>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.cls}`}>{status.label}</span>
+                  {asset.location && <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">{asset.location}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: 1 row เหมือนเดิม */}
+          <div className="hidden sm:flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <button onClick={() => router.push('/assets')}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors shrink-0">
-                <ChevronRight size={18} className="rotate-180" />
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0 text-sm font-medium">
+                <span>Asset All</span>
+                <ChevronRight size={14} />
               </button>
               <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-2xl shrink-0">
                 {CAT_ICON[asset.category] ?? '📦'}
@@ -181,7 +314,6 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 </div>
               </div>
             </div>
-            {/* right: action buttons */}
             <div className="flex items-center gap-2 shrink-0">
               {canTransfer(role) && !editing && (
                 <button onClick={() => setShowTransfer(true)}
@@ -191,7 +323,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
               )}
               {canEdit(role) && (
                 <button onClick={() => setEditing(e => !e)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${editing ? 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   <Pencil size={14} /> {editing ? 'ยกเลิก' : 'แก้ไข'}
                 </button>
               )}
@@ -215,86 +347,6 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
 
             {/* ── คอลัมน์ซ้าย (3/5) ── */}
             <div className="lg:col-span-3 space-y-4">
-
-              {/* รูปภาพ */}
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                {/* รูปหลัก */}
-                {asset.images.length > 0 ? (
-                  <div className="relative aspect-video bg-gray-100 dark:bg-gray-900 cursor-pointer group"
-                    onClick={() => setLightbox(asset.images[0])}>
-                    <img src={`${R2_PUBLIC}/${asset.images[0]}`}
-                      className="w-full h-full object-contain" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                      <ImageIcon size={24} className="text-white opacity-0 group-hover:opacity-70 transition-opacity" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="aspect-video bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center gap-2">
-                    <ImageIcon size={36} className="text-gray-200 dark:text-gray-700" />
-                    <p className="text-xs text-gray-300 dark:text-gray-600">ยังไม่มีรูปภาพ</p>
-                  </div>
-                )}
-                {/* thumbnail strip */}
-                <div className="p-3 flex items-center gap-2">
-                  <div className="flex gap-2 flex-1">
-                    {[0,1,2,3,4].map(i => {
-                      const key = asset.images[i]
-                      return key ? (
-                        <div key={i} className="relative group w-14 h-14 shrink-0">
-                          <img src={`${R2_PUBLIC}/${key}`} onClick={() => setLightbox(key)}
-                            className="w-full h-full object-cover rounded-lg border-2 border-transparent hover:border-indigo-400 cursor-pointer transition-all" />
-                          {canEdit(role) && (
-                            <button onClick={() => setAlertDialog({
-                              title: 'ลบรูปภาพ',
-                              message: 'ต้องการลบรูปนี้ออกจาก Asset ใช่ไหม?',
-                              onConfirm: async () => {
-                                const supabase = createClient()
-                                await fetch('/api/r2/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })
-                                const newKeys = asset.images.filter(k => k !== key)
-                                await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
-                                await insertAssetLog({ asset_id: asset.id, action: 'image_removed', detail: key, performed_by: userId })
-                                setAsset(a => a ? { ...a, images: newKeys } : a)
-                              },
-                            })}
-                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow">
-                              <X size={9} />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <div key={i} className={`w-14 h-14 shrink-0 rounded-lg border-2 border-dashed flex items-center justify-center ${i === asset.images.length && canEdit(role) ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-100 dark:border-gray-700'}`}>
-                          {i === asset.images.length && canEdit(role) ? <Plus size={14} className="text-indigo-400" /> : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {canEdit(role) && asset.images.length < 5 && (
-                    <label className="shrink-0 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer ml-auto">
-                      <Plus size={13} /> เพิ่มรูป
-                      <input type="file" accept="image/*" multiple className="hidden"
-                        onChange={async e => {
-                          if (!e.target.files) return
-                          const { compressImage } = await import('@/lib/compressImage')
-                          const { assetImageKey, getNextImageIndex } = await import('@/lib/r2')
-                          const supabase = createClient()
-                          const newKeys = [...asset.images]
-                          for (const file of Array.from(e.target.files)) {
-                            if (newKeys.length >= 5) break
-                            const compressed = await compressImage(file)
-                            const idx = await getNextImageIndex(newKeys)
-                            const key = assetImageKey(asset.asset_no, idx)
-                            const { url } = await fetch('/api/r2/presign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }).then(r => r.json())
-                            await fetch(url, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
-                            newKeys.push(key)
-                            await insertAssetLog({ asset_id: asset.id, action: 'image_added', detail: key, performed_by: userId })
-                          }
-                          await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
-                          setAsset(a => a ? { ...a, images: newKeys } : a)
-                        }} />
-                    </label>
-                  )}
-                </div>
-              </div>
 
               {/* ข้อมูลอุปกรณ์ */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
@@ -373,6 +425,87 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                   </div>
                 )
               })()}
+
+              {/* รูปภาพ */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                {/* hidden inputs */}
+                <input ref={uploadRef} type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => e.target.files && handleUploadFiles(e.target.files)} />
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => e.target.files && handleUploadFiles(e.target.files)} />
+
+                {/* รูปหลัก */}
+                {asset.images.length > 0 ? (
+                  <div className="relative aspect-video bg-gray-100 dark:bg-gray-900 cursor-pointer group"
+                    onClick={() => setLightbox(0)}>
+                    <img src={`${R2_PUBLIC}/${asset.images[0]}`} className="w-full h-full object-contain" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                      <span className="text-white/0 group-hover:text-white/80 text-xs font-medium transition-all bg-black/30 px-3 py-1 rounded-full">
+                        คลิกเพื่อดูทั้งหมด
+                      </span>
+                    </div>
+                  </div>
+                ) : canEdit(role) ? (
+                  <div className="aspect-video bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center gap-3">
+                    <ImageIcon size={36} className="text-gray-200 dark:text-gray-700" />
+                    <p className="text-xs text-gray-400 dark:text-gray-500">ยังไม่มีรูปภาพ</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => cameraRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors">
+                        <Camera size={13} /> ถ่ายรูป
+                      </button>
+                      <button onClick={() => uploadRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <Upload size={13} /> เลือกรูป
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center gap-2">
+                    <ImageIcon size={36} className="text-gray-200 dark:text-gray-700" />
+                    <p className="text-xs text-gray-300 dark:text-gray-600">ยังไม่มีรูปภาพ</p>
+                  </div>
+                )}
+
+                {/* thumbnail strip */}
+                <div className="p-3 flex gap-2">
+                  {[0,1,2,3,4].map(i => {
+                    const key = asset.images[i]
+                    const isEmpty = !key
+                    const isNextSlot = isEmpty && i === asset.images.length && canEdit(role) && asset.images.length < 5
+                    return key ? (
+                      <div key={i} className="relative group w-14 h-14 shrink-0">
+                        <img src={`${R2_PUBLIC}/${key}`} onClick={() => setLightbox(i)}
+                          className="w-full h-full object-cover rounded-lg border-2 border-transparent hover:border-indigo-400 cursor-pointer transition-all" />
+                        {canEdit(role) && (
+                          <button onClick={() => setAlertDialog({
+                            title: 'ลบรูปภาพ',
+                            message: 'ต้องการลบรูปนี้ออกจาก Asset ใช่ไหม?',
+                            onConfirm: async () => {
+                              const supabase = createClient()
+                              await fetch('/api/r2/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })
+                              const newKeys = asset.images.filter(k => k !== key)
+                              await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
+                              await insertAssetLog({ asset_id: asset.id, action: 'image_removed', detail: key, performed_by: userId })
+                              await load()
+                            },
+                          })} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                            <X size={9} />
+                          </button>
+                        )}
+                      </div>
+                    ) : isNextSlot ? (
+                      <button key={i} onClick={() => uploadRef.current?.click()}
+                        className="w-14 h-14 shrink-0 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 flex items-center justify-center transition-colors"
+                        title="อัปโหลดรูป">
+                        <Plus size={16} className="text-indigo-400" />
+                      </button>
+                    ) : (
+                      <div key={i} className="w-14 h-14 shrink-0 rounded-lg border-2 border-dashed border-gray-100 dark:border-gray-700" />
+                    )
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* ── คอลัมน์ขวา (2/5) ── */}
@@ -467,9 +600,6 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                             )}
                             {log.action === 'assigned' && log.detail && (
                               <span className="font-normal text-gray-500 dark:text-gray-400 ml-1 text-xs">· {log.detail}</span>
-                            )}
-                            {log.action === 'received' && log.detail && (
-                              <span className="font-normal text-cyan-600 dark:text-cyan-400 ml-1 text-xs">· {log.detail}</span>
                             )}
                             {log.action === 'unassigned' && log.detail && (
                               <span className="font-normal text-gray-500 dark:text-gray-400 ml-1 text-xs">· {log.detail}</span>

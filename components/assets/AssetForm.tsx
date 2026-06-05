@@ -208,7 +208,6 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
       }
       const normalize = (k: string, v: string) => DATE_FIELDS.has(k) ? v.slice(0, 10) : v
       const changedLines = (Object.keys(form) as (keyof typeof form)[])
-        .filter(k => k !== 'received_date') // received_date มี log แยก
         .filter(k => k in FIELD_LABELS)
         .filter(k => normalize(k, String(form[k] ?? '')) !== normalize(k, String(initial?.[k] ?? '')))
         .map(k => {
@@ -220,18 +219,6 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
       const detail = changedLines.length ? changedLines.join('\n') : undefined
       await supabase.from('assets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', initial!.id!)
       await insertAssetLog({ asset_id: initial!.id!, action: 'updated', performed_by: userId, detail })
-      // log received_date แยกเมื่อมีการตั้งค่าหรือเปลี่ยนวันที่ได้รับ
-      const prevReceived = (initial?.received_date ?? '').slice(0, 10)
-      const newReceived = form.received_date.slice(0, 10)
-      if (newReceived && newReceived !== prevReceived) {
-        const empLabel = employee ? ` · ${employee.full_name_th} (${employee.emp_id})` : ''
-        await insertAssetLog({
-          asset_id: initial!.id!,
-          action: 'received',
-          performed_by: userId,
-          detail: `${new Date(newReceived).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}${empLabel}`,
-        })
-      }
       onSave?.(initial!.id!)
     } else {
       // double-check duplicate asset_no before insert
@@ -251,15 +238,6 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
       }
       if (data) {
         await insertAssetLog({ asset_id: data.id, action: 'created', performed_by: userId })
-        if (form.received_date) {
-          const empLabel = employee ? ` · ${employee.full_name_th} (${employee.emp_id})` : ''
-          await insertAssetLog({
-            asset_id: data.id,
-            action: 'received',
-            performed_by: userId,
-            detail: `${new Date(form.received_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}${empLabel}`,
-          })
-        }
         try {
           await uploadImages(data.id, data.asset_no)
         } catch (e) {
