@@ -15,8 +15,15 @@ import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 const STATUSES = [
-  { value: '', label: 'ทุกสถานะ' }, { value: 'active', label: 'ใช้งาน' },
-  { value: 'available', label: 'ว่าง' }, { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'Stock' },
+  { value: '',          label: 'ทุกสถานะ' },
+  { value: 'available', label: 'ว่าง' },
+  { value: 'issued',    label: 'จ่าย' },
+  { value: 'returned',  label: 'รับคืน' },
+  { value: 'damaged',   label: 'ชำรุด' },
+  { value: 'repair',    label: 'ส่งซ่อม' },
+  { value: 'writeoff',  label: 'Write Off' },
+  { value: 'hold',      label: 'Hold' },
+  { value: 'spare',     label: 'Spare' },
 ]
 
 export default function AssetsPageContent() {

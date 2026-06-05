@@ -8,10 +8,17 @@ import { createClient } from '@/lib/supabase'
 import { insertAssetLog } from '@/lib/logging'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  active:    { label: 'ใช้งาน', cls: 'bg-green-100 text-green-700' },
-  available: { label: 'ว่าง',   cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  repair:    { label: 'ซ่อม',   cls: 'bg-amber-100 text-amber-700' },
-  storage:   { label: 'Stock',  cls: 'bg-blue-100 text-blue-700' },
+  available: { label: 'ว่าง',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
+  issued:    { label: 'จ่าย',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
+  returned:  { label: 'รับคืน',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
+  damaged:   { label: 'ชำรุด',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
+  repair:    { label: 'ส่งซ่อม',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
+  writeoff:  { label: 'Write Off', cls: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' },
+  hold:      { label: 'Hold',      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
+  spare:     { label: 'Spare',     cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400' },
+  // legacy
+  active:    { label: 'จ่าย',     cls: 'bg-green-100 text-green-700' },
+  storage:   { label: 'ว่าง',     cls: 'bg-gray-100 text-gray-600' },
 }
 
 const CAT_ICON: Record<string, string> = {

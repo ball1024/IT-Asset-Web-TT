@@ -38,7 +38,7 @@ export interface Asset {
   brand?: string
   model?: string
   serial_no?: string
-  status: 'active' | 'available' | 'repair' | 'storage'
+  status: 'available' | 'issued' | 'returned' | 'damaged' | 'repair' | 'writeoff' | 'hold' | 'spare'
   location?: string
   purchase_date?: string
   received_date?: string

@@ -32,7 +32,7 @@ export default function TransferModal({ asset, onDone, onClose, userId, mode = '
     setSaving(true)
     const supabase = createClient()
     const oldEmp = asset.employees
-    const newStatus = mode === 'assign' ? 'active' : asset.status
+    const newStatus = mode === 'assign' ? 'issued' : asset.status
     const dateLabel = receivedDate
       ? new Date(receivedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
       : ''

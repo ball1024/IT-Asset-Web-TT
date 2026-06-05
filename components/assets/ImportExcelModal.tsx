@@ -365,23 +365,28 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
             </div>
           )}
 
-          {done && (
+          {done && (() => {
+            const successCount = importMode === 'update' ? updatedCount : importedCount
+            const hasSuccess = successCount > 0
+            return (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-4 py-4">
-                <CheckCircle2 size={24} className="text-green-500 shrink-0" />
+              <div className={`flex items-center gap-3 rounded-xl px-4 py-4 border ${hasSuccess ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
+                <CheckCircle2 size={24} className={hasSuccess ? 'text-green-500 shrink-0' : 'text-amber-500 shrink-0'} />
                 <div>
-                  <p className="font-semibold text-green-700 dark:text-green-400">Import เสร็จสิ้น!</p>
-                  <p className="text-sm text-green-600 dark:text-green-400">
-                    {importMode === 'update'
-                      ? <>อัปเดต <span className="font-bold">{updatedCount}</span> รายการ</>
-                      : <>เพิ่มใหม่ <span className="font-bold">{importedCount}</span> รายการ</>
-                    }
-                    {skippedCount > 0 && (
-                      <span className="text-amber-600 dark:text-amber-400">
-                        {' '}· {importMode === 'update' ? 'ไม่พบ' : 'ข้าม'} <span className="font-bold">{skippedCount}</span> รายการ
-                      </span>
-                    )}
+                  <p className={`font-semibold ${hasSuccess ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                    {hasSuccess ? 'Import เสร็จสิ้น!' : 'ไม่มีรายการถูก Import'}
                   </p>
+                  <div className="flex gap-2 flex-wrap mt-1">
+                    {importedCount > 0 && (
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full">✓ เพิ่มใหม่ {importedCount}</span>
+                    )}
+                    {updatedCount > 0 && (
+                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">↻ อัปเดต {updatedCount}</span>
+                    )}
+                    {skippedCount > 0 && (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full">– ข้าม {skippedCount}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -413,7 +418,7 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
                 </div>
               )}
             </div>
-          )}
+          )})()}
         </div>
 
         <div className="flex gap-2 px-5 pb-5">

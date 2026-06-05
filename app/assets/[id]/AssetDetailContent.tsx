@@ -11,7 +11,8 @@ import EmployeeProfilePopup from '@/components/assets/EmployeeProfilePopup'
 import VendorPopup from '@/components/assets/VendorPopup'
 import TransferModal from '@/components/assets/TransferModal'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle, TrendingDown, Camera, Upload, Search, Lock, Copy, Check, KeyRound } from 'lucide-react'
+import { ArrowLeftRight, Trash2, Pencil, ChevronRight, Plus, Clock, Info, Image as ImageIcon, X, MoreHorizontal, AlertTriangle, TrendingDown, Camera, Upload, Search, Lock, Copy, Check, KeyRound, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 function calcDepreciation(originalPrice: number, receivedDate: string) {
   const received = new Date(receivedDate)
@@ -39,10 +40,17 @@ function calcDepreciation(originalPrice: number, receivedDate: string) {
 const R2_PUBLIC = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  active:    { label: 'ใช้งาน', cls: 'bg-green-100 text-green-700' },
-  available: { label: 'ว่าง',   cls: 'bg-gray-100 text-gray-600' },
-  repair:    { label: 'ซ่อม',   cls: 'bg-amber-100 text-amber-700' },
-  storage:   { label: 'Stock',  cls: 'bg-blue-100 text-blue-700' },
+  available: { label: 'ว่าง',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
+  issued:    { label: 'จ่าย',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
+  returned:  { label: 'รับคืน',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
+  damaged:   { label: 'ชำรุด',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
+  repair:    { label: 'ส่งซ่อม',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
+  writeoff:  { label: 'Write Off', cls: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' },
+  hold:      { label: 'Hold',      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
+  spare:     { label: 'Spare',     cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400' },
+  // legacy
+  active:    { label: 'จ่าย',     cls: 'bg-green-100 text-green-700' },
+  storage:   { label: 'ว่าง',     cls: 'bg-gray-100 text-gray-600' },
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -75,6 +83,12 @@ function LicenseSection({ assetId, role, userId }: { assetId: string; role: stri
   const [copied, setCopied] = useState<string | null>(null)
   const [myRequests, setMyRequests] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({})
   const [confirmDelete, setConfirmDelete] = useState<AssetLicense | null>(null)
+  const [showImport, setShowImport] = useState(false)
+  const [importMode, setImportMode] = useState<'add' | 'update'>('add')
+  const [importRows, setImportRows] = useState<any[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ added: number; updated: number; skipped: number } | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
   // openedAt: timestamp เมื่อ user กดเปิดดู key (เก็บใน localStorage ด้วย)
   const [openedAt, setOpenedAt] = useState<Record<string, number>>({})
   const [remaining, setRemaining] = useState<Record<string, number>>({})
@@ -245,6 +259,50 @@ function LicenseSection({ assetId, role, userId }: { assetId: string; role: stri
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([{ name: 'Microsoft Word', license_key: 'XXXXX-XXXXX-XXXXX', notes: '' }])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Licenses')
+    XLSX.writeFile(wb, 'licenses_template.xlsx')
+  }
+
+  const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target?.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      setImportRows(XLSX.utils.sheet_to_json(ws) as any[])
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  const runImport = async () => {
+    if (!importRows.length) return
+    setImporting(true)
+    const nameMap = Object.fromEntries(licenses.map(l => [l.name.trim().toLowerCase(), l.id]))
+    let added = 0, updated = 0, skipped = 0
+    for (const row of importRows) {
+      const name = String(row.name ?? '').trim()
+      if (!name) { skipped++; continue }
+      const payload = { name, license_key: row.license_key ? String(row.license_key) : null, notes: row.notes ? String(row.notes) : null }
+      const existId = nameMap[name.toLowerCase()]
+      if (existId) {
+        if (importMode === 'update') {
+          await createClient().from('asset_licenses').update(payload).eq('id', existId)
+          updated++
+        } else { skipped++ }
+      } else {
+        await createClient().from('asset_licenses').insert({ ...payload, asset_id: assetId, created_by: userId })
+        added++
+      }
+    }
+    setImportResult({ added, updated, skipped })
+    setImporting(false)
+    load()
+  }
+
   const inp = 'w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400'
 
   if (loading) return null
@@ -281,15 +339,92 @@ function LicenseSection({ assetId, role, userId }: { assetId: string; role: stri
         </div>
       )}
 
+      {/* Import modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setShowImport(false); setImportRows([]); setImportResult(null) }}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2"><Upload size={15} /> Import Programs</h3>
+              <button onClick={() => { setShowImport(false); setImportRows([]); setImportResult(null) }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <button onClick={downloadTemplate} className="w-full flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+                <Download size={14} /> ดาวน์โหลด Template
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {([['add', 'เพิ่มใหม่', 'ชื่อซ้ำจะข้าม'], ['update', 'เพิ่ม + อัปเดต', 'ชื่อซ้ำจะอัปเดต']] as const).map(([k, t, d]) => (
+                  <button key={k} onClick={() => setImportMode(k)}
+                    className={`text-left p-2.5 rounded-xl border-2 transition-colors ${importMode === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600'}`}>
+                    <p className={`text-xs font-medium ${importMode === k ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-200'}`}>{t}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{d}</p>
+                  </button>
+                ))}
+              </div>
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onImportFile} />
+              <button onClick={() => importRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition-colors">
+                <Upload size={14} /> {importRows.length ? `เลือกแล้ว · ${importRows.length} แถว` : 'เลือกไฟล์ .xlsx / .csv'}
+              </button>
+              {importResult && (() => {
+                const hasSuccess = importResult.added > 0 || importResult.updated > 0
+                const allSkipped = importResult.skipped > 0 && !hasSuccess
+                return (
+                  <div className={`p-3 rounded-xl text-xs space-y-1.5 ${hasSuccess ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
+                    <p className={`font-medium ${hasSuccess ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      {hasSuccess ? 'Import สำเร็จ' : 'ไม่มีรายการถูก Import'}
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {importResult.added > 0 && (
+                        <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full">
+                          ✓ เพิ่มใหม่ {importResult.added}
+                        </span>
+                      )}
+                      {importResult.updated > 0 && (
+                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">
+                          ↻ อัปเดต {importResult.updated}
+                        </span>
+                      )}
+                      {importResult.skipped > 0 && (
+                        <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full">
+                          – ข้าม {importResult.skipped}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="flex gap-2 justify-end px-5 pb-4">
+              <button onClick={() => { setShowImport(false); setImportRows([]); setImportResult(null) }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                {importResult ? 'ปิด' : 'ยกเลิก'}
+              </button>
+              {!importResult && (
+                <button onClick={runImport} disabled={!importRows.length || importing}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors">
+                  {importing ? 'กำลัง Import...' : 'Import'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
           <KeyRound size={13} /> Programs & Licenses
         </p>
         {canManage && !adding && (
-          <button onClick={() => { setAdding(true); setEditId(null); setForm({ name: '', license_key: '', notes: '' }) }}
-            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
-            <Plus size={13} /> เพิ่ม
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setShowImport(true); setImportResult(null) }}
+              className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-500 transition-colors">
+              <Upload size={12} /> Import
+            </button>
+            <button onClick={() => { setAdding(true); setEditId(null); setForm({ name: '', license_key: '', notes: '' }) }}
+              className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+              <Plus size={13} /> เพิ่ม
+            </button>
+          </div>
         )}
       </div>
 
@@ -911,6 +1046,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 </div>
               </div>
 
+              <LicenseSection assetId={asset.id} role={role} userId={userId ?? null} />
+
               {/* Book Valued */}
               {asset.original_price != null && asset.original_price > 0 && (() => {
                 const baseDate = asset.purchase_date
@@ -960,8 +1097,6 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                   </div>
                 )
               })()}
-
-              <LicenseSection assetId={asset.id} role={role} userId={userId ?? null} />
 
               {/* รูปภาพ */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -1090,7 +1225,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                         message: `ถอด ${employee.full_name_th} ออกจาก Asset นี้ใช่ไหม?`,
                         onConfirm: async () => {
                           const supabase = createClient()
-                          await supabase.from('assets').update({ emp_id: null, status: 'available', updated_at: new Date().toISOString() }).eq('id', id)
+                          await supabase.from('assets').update({ emp_id: null, status: 'returned', updated_at: new Date().toISOString() }).eq('id', id)
                           await insertAssetLog({ asset_id: id, action: 'unassigned', performed_by: userId, detail: `${employee.emp_id} ${employee.full_name_th}` })
                           load()
                         },

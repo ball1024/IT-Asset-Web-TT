@@ -12,8 +12,14 @@ import Fuse from 'fuse.js'
 
 const CATEGORIES = ['Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 const STATUSES = [
-  { value: 'active', label: 'ใช้งาน' }, { value: 'available', label: 'ว่าง' },
-  { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'Stock' },
+  { value: 'available', label: 'ว่าง' },
+  { value: 'issued',    label: 'จ่าย' },
+  { value: 'returned',  label: 'รับคืน' },
+  { value: 'damaged',   label: 'ชำรุด' },
+  { value: 'repair',    label: 'ส่งซ่อม' },
+  { value: 'writeoff',  label: 'Write Off' },
+  { value: 'hold',      label: 'Hold' },
+  { value: 'spare',     label: 'Spare' },
 ]
 
 interface Props {
@@ -108,14 +114,14 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
 
   const selectEmployee = (emp: Employee) => {
     setEmployee(emp)
-    setForm(f => ({ ...f, emp_id: emp.emp_id, status: 'active', ...(deptFromEmp ? { department: emp.department ?? '' } : {}) }))
+    setForm(f => ({ ...f, emp_id: emp.emp_id, status: 'issued', ...(deptFromEmp ? { department: emp.department ?? '' } : {}) }))
     setEmpQuery(emp.full_name_th)
     setShowEmpDrop(false)
   }
 
   const clearEmployee = () => {
     setEmployee(null)
-    setForm(f => ({ ...f, emp_id: '', status: 'available', ...(deptFromEmp ? { department: '' } : {}) }))
+    setForm(f => ({ ...f, emp_id: '', status: 'returned', ...(deptFromEmp ? { department: '' } : {}) }))
     setEmpQuery('')
     setEmpResults([])
   }
@@ -207,7 +213,10 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
       }
       const DATE_FIELDS = new Set(['purchase_date', 'received_date'])
       const STATUS_LABELS: Record<string, string> = {
-        active: 'ใช้งาน', available: 'ว่าง', repair: 'ซ่อม', storage: 'Stock',
+        available: 'ว่าง', issued: 'จ่าย', returned: 'รับคืน',
+        damaged: 'ชำรุด', repair: 'ส่งซ่อม', writeoff: 'Write Off',
+        hold: 'Hold', spare: 'Spare',
+        active: 'จ่าย', storage: 'ว่าง', // legacy
       }
       // map vendor_id → vendor name
       const vendorMap = Object.fromEntries(vendors.map(v => [v.id, v.name]))

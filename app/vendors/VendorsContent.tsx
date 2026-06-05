@@ -197,12 +197,27 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           </div>
 
           {/* Result */}
-          {result && (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl text-sm space-y-0.5">
-              <p className="font-medium text-green-700 dark:text-green-300">Import สำเร็จ</p>
-              <p className="text-xs text-green-600 dark:text-green-400">เพิ่มใหม่ {result.added} · อัปเดต {result.updated} · ข้าม {result.skipped}</p>
-            </div>
-          )}
+          {result && (() => {
+            const hasSuccess = result.added > 0 || result.updated > 0
+            return (
+              <div className={`p-3 rounded-xl text-xs space-y-1.5 ${hasSuccess ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
+                <p className={`font-medium ${hasSuccess ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                  {hasSuccess ? 'Import สำเร็จ' : 'ไม่มีรายการถูก Import'}
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {result.added > 0 && (
+                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full">✓ เพิ่มใหม่ {result.added}</span>
+                  )}
+                  {result.updated > 0 && (
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">↻ อัปเดต {result.updated}</span>
+                  )}
+                  {result.skipped > 0 && (
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full">– ข้าม {result.skipped}</span>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         <div className="flex gap-2 justify-end px-6 pb-5">
