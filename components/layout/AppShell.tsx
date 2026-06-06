@@ -7,6 +7,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle'
 import Toast from '@/components/ui/Toast'
 import { Menu, User, ChevronDown, Bell, KeyRound, ChevronRight, Check, X, Clock } from 'lucide-react'
 import Image from 'next/image'
+import logoSrc from '@/public/TT_LOGO_0.png'
 import { createClient } from '@/lib/supabase'
 import { useRole } from '@/hooks/useRole'
 import { useLicenseRequests, useMyLicenseNotifications } from '@/hooks/useLicenseRequests'
@@ -293,7 +294,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <Link href="/" className="flex items-center gap-2 mr-auto">
-          <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-10 w-auto object-contain" />
+          <Image src={logoSrc} alt="Teethtalk" className="h-10 w-auto object-contain" />
           <span className="font-bold text-indigo-700 dark:text-indigo-400 text-lg hidden sm:block">IT Asset Teethtalk</span>
         </Link>
 

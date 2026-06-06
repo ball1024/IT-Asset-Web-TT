@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import logoSrc from '@/public/TT_LOGO_0.png'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -86,7 +87,7 @@ export default function SignupPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
-          <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-14 w-auto object-contain mb-3" />
+          <Image src={logoSrc} alt="Teethtalk" className="h-14 w-auto object-contain mb-3" priority />
           <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset Management</h1>
           <p className="text-gray-400 dark:text-gray-500 text-xs mt-0.5">สมัครสมาชิก</p>
         </div>

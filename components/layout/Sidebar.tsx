@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
+import logoSrc from '@/public/TT_LOGO_0.png'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, PlusCircle, ClipboardList,
@@ -46,7 +47,7 @@ export default function Sidebar({ open, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-2 mb-6">
           <Link href="/" onClick={onClose} className="flex items-center gap-2">
-            <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-8 w-auto object-contain" />
+            <Image src={logoSrc} alt="Teethtalk" className="h-8 w-auto object-contain" />
             <div>
               <p className="text-base font-bold text-indigo-700 dark:text-indigo-400 leading-tight">IT Asset</p>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">Management System</p>
