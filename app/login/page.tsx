@@ -56,7 +56,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-7">
-          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={180} height={64} style={{ height: '4rem', width: 'auto' }} className="object-contain mb-3" />
+          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={180} height={64} style={{ height: '4rem', width: 'auto' }} className="object-contain mb-3" unoptimized />
           <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">IT Asset Management</h1>
           <p className="text-gray-400 dark:text-gray-500 text-xs mt-0.5">Sign in to continue</p>
         </div>

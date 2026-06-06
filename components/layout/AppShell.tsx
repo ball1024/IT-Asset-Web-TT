@@ -293,7 +293,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <Link href="/" className="flex items-center gap-2 mr-auto">
-          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={120} height={40} style={{ height: '2.5rem', width: 'auto' }} className="object-contain" />
+          <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={120} height={40} style={{ height: '2.5rem', width: 'auto' }} className="object-contain" unoptimized />
           <span className="font-bold text-indigo-700 dark:text-indigo-400 text-lg hidden sm:block">IT Asset Teethtalk</span>
         </Link>
 
