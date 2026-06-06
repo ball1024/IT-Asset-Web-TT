@@ -12,7 +12,10 @@ interface Props {
   onClose: () => void
 }
 
-const ASSET_TEMPLATE = [{ asset_no: 'NTB-2024-001', name: 'MacBook Pro 14"', category: 'MacBook', brand: 'Apple', model: 'M3 Pro', serial_no: 'C02XG2JHQ05N', purchase_date: '2024-01-15', location: 'Office A', department: 'IT', status: 'active', emp_id: 'EMP-001', notes: '' }]
+const ASSET_TEMPLATE = [
+  { asset_no: 'NTB-2024-001', name: 'MacBook Pro 14"', category: 'MacBook', brand: 'Apple', model: 'M3 Pro', serial_no: 'C02XG2JHQ05N', status: 'issued', location: 'Office A', emp_id: 'EMP-001', department: 'ฝ่ายเทคโนโลยีสารสนเทศ', received_date: '2024-01-20', purchase_date: '2024-01-15', original_price: 75000, notes: '' },
+  { asset_no: '', name: '', category: 'Notebook / MacBook / PC Desktop / iMac / Android / iOS / iPad / Monitor / Printer / TV / Network / Other', brand: '', model: '', serial_no: '', status: 'available / issued / returned / damaged / repair / writeoff / hold / spare', location: '', emp_id: '', department: '', received_date: 'YYYY-MM-DD', purchase_date: 'YYYY-MM-DD', original_price: 0, notes: '' },
+]
 const EMP_TEMPLATE = [
   { emp_id: 'EMP-001', full_name_th: 'สมชาย ใจดี', full_name_en: 'Somchai Jaidee', nickname: 'ชาย', department: 'IT', position: 'IT Support', branch: 'HQ', emp_email: 'somchai@company.com', phone: '081-234-5678', status: 'active' },
   { emp_id: '', full_name_th: '', full_name_en: '', nickname: '', department: '', position: '', branch: '', emp_email: '', phone: '', status: 'active / probation / resign' },
@@ -92,7 +95,7 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
 
     if (type === 'assets') {
       const VALID_CATEGORY = ['Notebook','MacBook','PC Desktop','iMac','Android','iOS','iPad','Monitor','Printer','TV','Network','Other']
-      const VALID_STATUS = ['active','available','repair','storage']
+      const VALID_STATUS = ['available','issued','returned','damaged','repair','writeoff','hold','spare']
 
       const allNos = rows.map(r => String(r.asset_no).trim()).filter(Boolean)
 
@@ -129,6 +132,8 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
           if (r.model !== undefined) payload.model = r.model ? String(r.model).trim() : null
           if (r.serial_no !== undefined) payload.serial_no = r.serial_no ? String(r.serial_no).trim() : null
           if (r.purchase_date !== undefined) payload.purchase_date = parseExcelDate(r.purchase_date)
+          if (r.received_date !== undefined) payload.received_date = parseExcelDate(r.received_date)
+          if (r.original_price !== undefined) payload.original_price = r.original_price ? parseFloat(String(r.original_price)) || null : null
           if (r.location !== undefined) payload.location = r.location ? String(r.location).trim() : null
           if (r.department !== undefined) payload.department = r.department ? String(r.department).trim() : null
           if (r.notes !== undefined) payload.notes = r.notes ? String(r.notes).trim() : null
@@ -139,9 +144,9 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
             payload.emp_id = null
           }
           if (r.status) {
-            payload.status = !payload.emp_id
-              ? 'available'
-              : VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active'
+            payload.status = VALID_STATUS.includes(String(r.status).toLowerCase())
+              ? String(r.status).toLowerCase()
+              : (payload.emp_id ? 'issued' : 'available')
           }
 
           const { error } = await supabase.from('assets').update(payload).eq('id', assetId)
@@ -164,20 +169,23 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
 
         if (!newRows.length) { setImporting(false); setDone(true); return }
 
+        const hasEmp = (r: Record<string, unknown>) => !!(r.emp_id && validEmpSet.has(String(r.emp_id).trim()))
         const records = newRows.map(r => ({
           asset_no: String(r.asset_no).trim(),
           name: String(r.name).trim(),
           category: VALID_CATEGORY.includes(String(r.category)) ? String(r.category) : 'Other',
-          emp_id: r.emp_id && validEmpSet.has(String(r.emp_id).trim()) ? String(r.emp_id).trim() : null,
+          emp_id: hasEmp(r) ? String(r.emp_id).trim() : null,
           brand: r.brand ? String(r.brand).trim() : null,
           model: r.model ? String(r.model).trim() : null,
           serial_no: r.serial_no ? String(r.serial_no).trim() : null,
           purchase_date: parseExcelDate(r.purchase_date),
+          received_date: parseExcelDate(r.received_date),
+          original_price: r.original_price ? parseFloat(String(r.original_price)) || null : null,
           location: r.location ? String(r.location).trim() : null,
           department: r.department ? String(r.department).trim() : null,
-          status: !(r.emp_id && validEmpSet.has(String(r.emp_id).trim()))
-            ? 'available'
-            : VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active',
+          status: VALID_STATUS.includes(String(r.status).toLowerCase())
+            ? String(r.status).toLowerCase()
+            : (hasEmp(r) ? 'issued' : 'available'),
           notes: r.notes ? String(r.notes).trim() : null,
           images: [],
           created_by: userId,
