@@ -9,10 +9,14 @@ import { useRouter } from 'next/navigation'
 const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#06b6d4']
 
 const STATUS_MAP: Record<string, { label: string; cls: string; bar: string }> = {
-  active:    { label: 'ใช้งาน', cls: 'bg-green-100 text-green-700',  bar: 'bg-green-500' },
-  available: { label: 'ว่าง',   cls: 'bg-gray-100 text-gray-600',    bar: 'bg-gray-400' },
-  repair:    { label: 'ซ่อม',   cls: 'bg-amber-100 text-amber-700',  bar: 'bg-amber-500' },
-  storage:   { label: 'Stock',  cls: 'bg-blue-100 text-blue-700',    bar: 'bg-blue-500' },
+  issued:    { label: 'ใช้งาน',     cls: 'bg-green-100 text-green-700',   bar: 'bg-green-500' },
+  available: { label: 'ว่าง',       cls: 'bg-gray-100 text-gray-600',     bar: 'bg-gray-400' },
+  repair:    { label: 'ซ่อม',       cls: 'bg-amber-100 text-amber-700',   bar: 'bg-amber-500' },
+  spare:     { label: 'Stock',      cls: 'bg-blue-100 text-blue-700',     bar: 'bg-blue-500' },
+  returned:  { label: 'คืนแล้ว',    cls: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
+  damaged:   { label: 'เสียหาย',    cls: 'bg-red-100 text-red-700',       bar: 'bg-red-500' },
+  writeoff:  { label: 'ตัดจำหน่าย', cls: 'bg-gray-200 text-gray-500',    bar: 'bg-gray-500' },
+  hold:      { label: 'พักใช้',     cls: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -62,10 +66,10 @@ export default function DashboardContent() {
 
   const counts = useMemo(() => ({
     total:     assets.length,
-    active:    assets.filter(a => a.status === 'active').length,
+    active:    assets.filter(a => a.status === 'issued').length,
     available: assets.filter(a => a.status === 'available').length,
     repair:    assets.filter(a => a.status === 'repair').length,
-    storage:   assets.filter(a => a.status === 'storage').length,
+    storage:   assets.filter(a => a.status === 'spare').length,
   }), [assets])
 
   // ตามประเภท
@@ -74,9 +78,7 @@ export default function DashboardContent() {
     assets.forEach(a => {
       if (!m[a.category]) m[a.category] = { total: 0, active: 0, available: 0 }
       m[a.category].total++
-      const hasEmp = !!(a.employees as any)?.full_name_th
-      const displayStatus = hasEmp && a.status === 'available' ? 'active' : a.status
-      if (displayStatus === 'active') m[a.category].active++
+      if (a.status === 'issued') m[a.category].active++
       else if (a.status === 'available') m[a.category].available++
     })
     return Object.entries(m).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total)
@@ -90,9 +92,7 @@ export default function DashboardContent() {
       if (!dept) return
       if (!m[dept]) m[dept] = { total: 0, active: 0, available: 0 }
       m[dept].total++
-      const hasEmp = !!(a.employees as any)?.full_name_th
-      const displayStatus = hasEmp && a.status === 'available' ? 'active' : a.status
-      if (displayStatus === 'active') m[dept].active++
+      if (a.status === 'issued') m[dept].active++
       else if (a.status === 'available') m[dept].available++
     })
     return Object.entries(m).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total).slice(0, 8)
