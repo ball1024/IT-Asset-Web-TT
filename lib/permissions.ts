@@ -22,3 +22,5 @@ export function canViewMembers(role: Role | null | undefined) { return hasRole(r
 export function canManageMembers(role: Role | null | undefined) { return role === 'master_admin' }
 export function canImportExport(role: Role | null | undefined) { return hasRole(role, 'user') }
 export function canAccessSettings(role: Role | null | undefined) { return hasRole(role, 'admin') }
+export function canRepair(role: Role | null | undefined) { return hasRole(role, 'user') }
+export function canResolveRepair(role: Role | null | undefined) { return hasRole(role, 'admin') }

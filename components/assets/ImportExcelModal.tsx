@@ -13,13 +13,21 @@ interface Props {
 }
 
 const ASSET_TEMPLATE = [
-  { asset_no: 'NTB-2024-001', name: 'MacBook Pro 14"', category: 'MacBook', brand: 'Apple', model: 'M3 Pro', serial_no: 'C02XG2JHQ05N', status: 'issued', location: 'Office A', emp_id: 'EMP-001', department: 'ฝ่ายเทคโนโลยีสารสนเทศ', received_date: '2024-01-20', purchase_date: '2024-01-15', original_price: 75000, notes: '' },
-  { asset_no: '', name: '', category: 'Notebook / MacBook / PC Desktop / iMac / Android / iOS / iPad / Monitor / Printer / TV / Network / Other', brand: '', model: '', serial_no: '', status: 'available / issued / returned / damaged / repair / writeoff / hold / spare', location: '', emp_id: '', department: '', received_date: 'YYYY-MM-DD', purchase_date: 'YYYY-MM-DD', original_price: 0, notes: '' },
+  { asset_no: 'NTB-2024-001', name: 'MacBook Pro 14"', category: 'MacBook', brand: 'Apple', model: 'M3 Pro', serial_no: 'C02XG2JHQ05N', status: 'issued', location: 'Office A', emp_id: 'EMP-001', department: 'ฝ่ายเทคโนโลยีสารสนเทศ', received_date: '2024-01-20', purchase_date: '2024-01-15', original_price: 75000, vendor_name: 'Apple Thailand', notes: '' },
+  { asset_no: '', name: '', category: 'Notebook / MacBook / PC Desktop / iMac / Android / iOS / iPad / Monitor / Printer / TV / Network / Other', brand: '', model: '', serial_no: '', status: 'available / issued / returned / damaged / repair / writeoff / hold / spare', location: '', emp_id: '', department: '', received_date: 'YYYY-MM-DD', purchase_date: 'YYYY-MM-DD', original_price: 0, vendor_name: '(ชื่อ Vendor ในระบบ)', notes: '' },
 ]
 const EMP_TEMPLATE = [
   { emp_id: 'EMP-001', full_name_th: 'สมชาย ใจดี', full_name_en: 'Somchai Jaidee', nickname: 'ชาย', department: 'IT', position: 'IT Support', branch: 'HQ', emp_email: 'somchai@company.com', phone: '081-234-5678', status: 'active' },
   { emp_id: '', full_name_th: '', full_name_en: '', nickname: '', department: '', position: '', branch: '', emp_email: '', phone: '', status: 'active / probation / resign' },
 ]
+
+// ค่าว่างหรือ "-" ทุกรูปแบบให้เป็น null
+function blankToNull(val: unknown): string | null {
+  if (val === null || val === undefined) return null
+  const s = String(val).trim()
+  if (!s || s === '-' || s === '–' || s === '—') return null
+  return s
+}
 
 function parseExcelDate(val: unknown): string | null {
   if (!val) return null
@@ -27,7 +35,7 @@ function parseExcelDate(val: unknown): string | null {
     const date = XLSX.SSF.parse_date_code(val)
     if (date) return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
   }
-  const s = String(val).trim()
+  const s = blankToNull(val)
   if (!s) return null
   const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
   if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`
@@ -106,6 +114,10 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
         const { data: empData } = await supabase.from('employees').select('emp_id').in('emp_id', allEmpIds)
         ;(empData ?? []).forEach(e => validEmpSet.add(e.emp_id))
       }
+
+      // build vendor name → id map
+      const { data: vendorData } = await supabase.from('vendors').select('id, name')
+      const vendorMap = Object.fromEntries((vendorData ?? []).map(v => [v.name.trim().toLowerCase(), v.id]))
       const invalidEmps = allEmpIds.filter(id => !validEmpSet.has(id))
       if (invalidEmps.length) setInvalidEmpIds([...new Set(invalidEmps)])
 
@@ -124,29 +136,30 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
         let count = 0
         for (const r of updateRows) {
           const assetId = existingMap[String(r.asset_no).trim()]
-          const empId = r.emp_id && validEmpSet.has(String(r.emp_id).trim()) ? String(r.emp_id).trim() : undefined
+          const rawEmpId = blankToNull(r.emp_id)
+          const empId = rawEmpId && validEmpSet.has(rawEmpId) ? rawEmpId : undefined
           const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
-          if (r.name) payload.name = String(r.name).trim()
-          if (r.category) payload.category = VALID_CATEGORY.includes(String(r.category)) ? String(r.category) : 'Other'
-          if (r.brand !== undefined) payload.brand = r.brand ? String(r.brand).trim() : null
-          if (r.model !== undefined) payload.model = r.model ? String(r.model).trim() : null
-          if (r.serial_no !== undefined) payload.serial_no = r.serial_no ? String(r.serial_no).trim() : null
-          if (r.purchase_date !== undefined) payload.purchase_date = parseExcelDate(r.purchase_date)
-          if (r.received_date !== undefined) payload.received_date = parseExcelDate(r.received_date)
-          if (r.original_price !== undefined) payload.original_price = r.original_price ? parseFloat(String(r.original_price)) || null : null
-          if (r.location !== undefined) payload.location = r.location ? String(r.location).trim() : null
-          if (r.department !== undefined) payload.department = r.department ? String(r.department).trim() : null
-          if (r.notes !== undefined) payload.notes = r.notes ? String(r.notes).trim() : null
+          if (r.name)     payload.name     = blankToNull(r.name)
+          if (r.category) payload.category = VALID_CATEGORY.includes(String(r.category).trim()) ? String(r.category).trim() : 'Other'
+          if ('brand'        in r) payload.brand         = blankToNull(r.brand)
+          if ('model'        in r) payload.model         = blankToNull(r.model)
+          if ('serial_no'    in r) payload.serial_no     = blankToNull(r.serial_no)
+          if ('purchase_date'in r) payload.purchase_date = parseExcelDate(r.purchase_date)
+          if ('received_date'in r) payload.received_date = parseExcelDate(r.received_date)
+          if ('original_price'in r) payload.original_price = blankToNull(r.original_price) ? parseFloat(String(r.original_price)) || null : null
+          if ('vendor_name'  in r) { const vn = blankToNull(r.vendor_name); payload.vendor_id = vn ? (vendorMap[vn.toLowerCase()] ?? null) : null }
+          if ('location'     in r) payload.location      = blankToNull(r.location)
+          if ('department'   in r) payload.department    = blankToNull(r.department)
+          if ('notes'        in r) payload.notes         = blankToNull(r.notes)
           if (empId !== undefined) {
             payload.emp_id = empId
-            payload.department = (r.department ? String(r.department).trim() : null) ?? payload.department
-          } else if (r.emp_id === '') {
+            payload.department = blankToNull(r.department) ?? payload.department
+          } else if (rawEmpId === null) {
             payload.emp_id = null
           }
           if (r.status) {
-            payload.status = VALID_STATUS.includes(String(r.status).toLowerCase())
-              ? String(r.status).toLowerCase()
-              : (payload.emp_id ? 'issued' : 'available')
+            const s = blankToNull(r.status)?.toLowerCase()
+            payload.status = s && VALID_STATUS.includes(s) ? s : (payload.emp_id ? 'issued' : 'available')
           }
 
           const { error } = await supabase.from('assets').update(payload).eq('id', assetId)
@@ -169,27 +182,31 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
 
         if (!newRows.length) { setImporting(false); setDone(true); return }
 
-        const hasEmp = (r: Record<string, unknown>) => !!(r.emp_id && validEmpSet.has(String(r.emp_id).trim()))
-        const records = newRows.map(r => ({
-          asset_no: String(r.asset_no).trim(),
-          name: String(r.name).trim(),
-          category: VALID_CATEGORY.includes(String(r.category)) ? String(r.category) : 'Other',
-          emp_id: hasEmp(r) ? String(r.emp_id).trim() : null,
-          brand: r.brand ? String(r.brand).trim() : null,
-          model: r.model ? String(r.model).trim() : null,
-          serial_no: r.serial_no ? String(r.serial_no).trim() : null,
-          purchase_date: parseExcelDate(r.purchase_date),
-          received_date: parseExcelDate(r.received_date),
-          original_price: r.original_price ? parseFloat(String(r.original_price)) || null : null,
-          location: r.location ? String(r.location).trim() : null,
-          department: r.department ? String(r.department).trim() : null,
-          status: VALID_STATUS.includes(String(r.status).toLowerCase())
-            ? String(r.status).toLowerCase()
-            : (hasEmp(r) ? 'issued' : 'available'),
-          notes: r.notes ? String(r.notes).trim() : null,
-          images: [],
-          created_by: userId,
-        }))
+        const hasEmp = (r: Record<string, unknown>) => { const id = blankToNull(r.emp_id); return !!(id && validEmpSet.has(id)) }
+        const records = newRows.map(r => {
+          const empId = hasEmp(r) ? blankToNull(r.emp_id) : null
+          const rawStatus = blankToNull(r.status)?.toLowerCase()
+          const vn = blankToNull(r.vendor_name)
+          return {
+            asset_no:       String(r.asset_no).trim(),
+            name:           String(r.name).trim(),
+            category:       VALID_CATEGORY.includes(String(r.category).trim()) ? String(r.category).trim() : 'Other',
+            emp_id:         empId,
+            brand:          blankToNull(r.brand),
+            model:          blankToNull(r.model),
+            serial_no:      blankToNull(r.serial_no),
+            purchase_date:  parseExcelDate(r.purchase_date),
+            received_date:  parseExcelDate(r.received_date),
+            original_price: blankToNull(r.original_price) ? parseFloat(String(r.original_price)) || null : null,
+            vendor_id:      vn ? (vendorMap[vn.toLowerCase()] ?? null) : null,
+            location:       blankToNull(r.location),
+            department:     blankToNull(r.department),
+            status:         rawStatus && VALID_STATUS.includes(rawStatus) ? rawStatus : (empId ? 'issued' : 'available'),
+            notes:          blankToNull(r.notes),
+            images:         [],
+            created_by:     userId,
+          }
+        })
 
         const { data, error } = await supabase.from('assets').insert(records).select()
         if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
@@ -202,33 +219,36 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
 
     } else {
       const VALID_STATUS = ['active', 'probation', 'resign']
-      const validRows = rows.filter(r => String(r.emp_id).trim() && String(r.full_name_th).trim())
+      const validRows = rows.filter(r => blankToNull(r.emp_id) && blankToNull(r.full_name_th))
 
       if (importMode === 'add') {
         // ADD mode: ข้าม emp_id ที่มีอยู่แล้ว
-        const allEmpIds = validRows.map(r => String(r.emp_id).trim())
+        const allEmpIds = validRows.map(r => blankToNull(r.emp_id)!)
         const { data: existing } = await supabase.from('employees').select('emp_id').in('emp_id', allEmpIds)
         const existingSet = new Set((existing ?? []).map(e => e.emp_id))
 
-        const newRows = validRows.filter(r => !existingSet.has(String(r.emp_id).trim()))
-        const skipped = validRows.filter(r => existingSet.has(String(r.emp_id).trim()))
+        const newRows = validRows.filter(r => !existingSet.has(blankToNull(r.emp_id)!))
+        const skipped = validRows.filter(r => existingSet.has(blankToNull(r.emp_id)!))
         setSkippedCount(skipped.length)
-        setSkippedNos(skipped.map(r => String(r.emp_id).trim()))
+        setSkippedNos(skipped.map(r => blankToNull(r.emp_id)!))
 
         if (!newRows.length) { setImporting(false); setDone(true); return }
 
-        const records = newRows.map(r => ({
-          emp_id: String(r.emp_id).trim(),
-          full_name_th: String(r.full_name_th).trim(),
-          full_name_en: r.full_name_en ? String(r.full_name_en).trim() : null,
-          nickname: r.nickname ? String(r.nickname).trim() : null,
-          department: r.department ? String(r.department).trim() : null,
-          position: r.position ? String(r.position).trim() : null,
-          branch: r.branch ? String(r.branch).trim() : null,
-          emp_email: r.emp_email ? String(r.emp_email).trim() : null,
-          phone: r.phone ? String(r.phone).trim() : null,
-          status: VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active',
-        }))
+        const records = newRows.map(r => {
+          const s = blankToNull(r.status)?.toLowerCase()
+          return {
+            emp_id:       blankToNull(r.emp_id)!,
+            full_name_th: blankToNull(r.full_name_th)!,
+            full_name_en: blankToNull(r.full_name_en),
+            nickname:     blankToNull(r.nickname),
+            department:   blankToNull(r.department),
+            position:     blankToNull(r.position),
+            branch:       blankToNull(r.branch),
+            emp_email:    blankToNull(r.emp_email),
+            phone:        blankToNull(r.phone),
+            status:       s && VALID_STATUS.includes(s) ? s : 'active',
+          }
+        })
 
         const { data: empData, error } = await supabase.from('employees').insert(records).select()
         if (error) { setImportError(`Import ล้มเหลว: ${error.message}`); setImporting(false); return }
@@ -239,30 +259,30 @@ export default function ImportExcelModal({ type, userId, onDone, onClose }: Prop
         }
       } else {
         // UPDATE mode: อัปเดตเฉพาะที่มีอยู่แล้ว ไม่เพิ่มใหม่
-        const allEmpIds = validRows.map(r => String(r.emp_id).trim())
+        const allEmpIds = validRows.map(r => blankToNull(r.emp_id)!)
         const { data: existing } = await supabase.from('employees').select('emp_id').in('emp_id', allEmpIds)
         const existingSet = new Set((existing ?? []).map(e => e.emp_id))
 
-        const notFound = validRows.filter(r => !existingSet.has(String(r.emp_id).trim()))
+        const notFound = validRows.filter(r => !existingSet.has(blankToNull(r.emp_id)!))
         setSkippedCount(notFound.length)
-        setSkippedNos(notFound.map(r => String(r.emp_id).trim()))
+        setSkippedNos(notFound.map(r => blankToNull(r.emp_id)!))
 
-        const updateRows = validRows.filter(r => existingSet.has(String(r.emp_id).trim()))
+        const updateRows = validRows.filter(r => existingSet.has(blankToNull(r.emp_id)!))
         if (!updateRows.length) { setImporting(false); setDone(true); return }
 
         let count = 0
         for (const r of updateRows) {
-          const empId = String(r.emp_id).trim()
+          const empId = blankToNull(r.emp_id)!
           const payload: Record<string, unknown> = {}
-          if (r.full_name_th) payload.full_name_th = String(r.full_name_th).trim()
-          if (r.full_name_en !== undefined) payload.full_name_en = r.full_name_en ? String(r.full_name_en).trim() : null
-          if (r.nickname !== undefined) payload.nickname = r.nickname ? String(r.nickname).trim() : null
-          if (r.department !== undefined) payload.department = r.department ? String(r.department).trim() : null
-          if (r.position !== undefined) payload.position = r.position ? String(r.position).trim() : null
-          if (r.branch !== undefined) payload.branch = r.branch ? String(r.branch).trim() : null
-          if (r.emp_email !== undefined) payload.emp_email = r.emp_email ? String(r.emp_email).trim() : null
-          if (r.phone !== undefined) payload.phone = r.phone ? String(r.phone).trim() : null
-          if (r.status) payload.status = VALID_STATUS.includes(String(r.status).toLowerCase()) ? String(r.status).toLowerCase() : 'active'
+          if (r.full_name_th)      payload.full_name_th = blankToNull(r.full_name_th)
+          if ('full_name_en' in r) payload.full_name_en = blankToNull(r.full_name_en)
+          if ('nickname'     in r) payload.nickname     = blankToNull(r.nickname)
+          if ('department'   in r) payload.department   = blankToNull(r.department)
+          if ('position'     in r) payload.position     = blankToNull(r.position)
+          if ('branch'       in r) payload.branch       = blankToNull(r.branch)
+          if ('emp_email'    in r) payload.emp_email    = blankToNull(r.emp_email)
+          if ('phone'        in r) payload.phone        = blankToNull(r.phone)
+          if (r.status) { const s = blankToNull(r.status)?.toLowerCase(); payload.status = s && VALID_STATUS.includes(s) ? s : 'active' }
 
           const { error } = await supabase.from('employees').update(payload).eq('emp_id', empId)
           if (!error) {

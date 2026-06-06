@@ -13,6 +13,7 @@ export async function insertAssetLog(payload: {
   action: string
   performed_by?: string | null
   detail?: string
+  repair_request_id?: string
 }) {
   if (!isLoggingEnabled()) return
   await createClient().from('asset_logs').insert(payload)

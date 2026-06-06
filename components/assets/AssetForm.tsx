@@ -48,10 +48,14 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
     received_date: initial?.received_date ?? '',
     original_price: initial?.original_price?.toString() ?? '',
     vendor_id: initial?.vendor_id ?? '',
+    apple_id: initial?.apple_id ?? '',
     notes: initial?.notes ?? '',
     emp_id: initial?.emp_id ?? '',
     department: (initial as any)?.department ?? '',
   })
+
+  const APPLE_CATEGORIES = ['MacBook', 'iMac', 'iOS', 'iPad']
+  const isAppleDevice = APPLE_CATEGORIES.includes(form.category)
 
   const [deptFromEmp, setDeptFromEmp] = useState(true)
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -201,6 +205,7 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
       received_date: form.received_date || null,
       original_price: form.original_price ? parseFloat(form.original_price) : null,
       vendor_id: form.vendor_id || null,
+      apple_id: isAppleDevice ? (form.apple_id || null) : null,
       department: form.department || null,
     }
 
@@ -339,6 +344,24 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
             </button>
           </div>
         </div>
+
+        {/* Apple ID — เฉพาะ Apple device */}
+        {isAppleDevice && (
+          <div>
+            <label className={lbl}>
+              Apple ID
+              <span className="ml-1.5 text-xs text-gray-400 font-normal">(iCloud email)</span>
+            </label>
+            <input
+              type="email"
+              value={form.apple_id}
+              onChange={set('apple_id')}
+              placeholder="example@icloud.com"
+              className={inp}
+              autoComplete="off"
+            />
+          </div>
+        )}
 
         {/* Location */}
         <div>

@@ -4,10 +4,10 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, PlusCircle, ClipboardList,
-  Users, ShieldCheck, Settings, LogOut, X, KeyRound, Store,
+  Users, ShieldCheck, Settings, LogOut, X, KeyRound, Store, Wrench,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
-import { canEdit, canDelete, canViewMembers, canManageEmployees, canViewMembers as _cv, canAccessSettings } from '@/lib/permissions'
+import { canEdit, canDelete, canViewMembers, canManageEmployees, canViewMembers as _cv, canAccessSettings, canRepair } from '@/lib/permissions'
 import { createClient } from '@/lib/supabase'
 
 interface Props { open: boolean; onClose: () => void }
@@ -20,6 +20,8 @@ export default function Sidebar({ open, onClose }: Props) {
   const logout = async () => {
     onClose()
     await createClient().auth.signOut()
+    localStorage.removeItem('theme')
+    document.documentElement.setAttribute('data-theme', 'light')
     router.push('/login')
   }
 
@@ -44,7 +46,7 @@ export default function Sidebar({ open, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-2 mb-6">
           <Link href="/" onClick={onClose} className="flex items-center gap-2">
-            <Image src="/TT_LOGO_0.png" alt="Teethtalk" width={100} height={32} style={{ height: '2rem', width: 'auto' }} className="object-contain" unoptimized />
+            <img src="/TT_LOGO_0.png" alt="Teethtalk" className="h-8 w-auto object-contain" />
             <div>
               <p className="text-base font-bold text-indigo-700 dark:text-indigo-400 leading-tight">IT Asset</p>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">Management System</p>
@@ -62,6 +64,9 @@ export default function Sidebar({ open, onClose }: Props) {
           <Link href="/assets" onClick={onClose} className={active('/assets')}><Package size={18} /> All Assets</Link>
           {canEdit(role) && (
             <Link href="/assets/new" onClick={onClose} className={active('/assets/new')}><PlusCircle size={18} /> Add Asset</Link>
+          )}
+          {canRepair(role) && (
+            <Link href="/repairs" onClick={onClose} className={active('/repairs')}><Wrench size={18} /> Repairs</Link>
           )}
           {canDelete(role) && (
             <>

@@ -48,6 +48,7 @@ export interface Asset {
   emp_id?: string
   department?: string
   vendor_id?: string
+  apple_id?: string
   created_by?: string
   created_at?: string
   updated_at?: string
@@ -82,5 +83,26 @@ export interface AssetLog {
   action: string
   detail?: string
   performed_by?: string
+  repair_request_id?: string
   created_at: string
+}
+
+export type RepairStatus = 'pending' | 'in_progress' | 'resolved'
+export type RepairResolution = 'repaired' | 'replaced_spare' | 'replaced_new' | 'waiting_new'
+
+export interface RepairRequest {
+  id: string
+  asset_id: string
+  reported_by?: string
+  issue: string
+  status: RepairStatus
+  spare_asset_id?: string
+  resolution?: RepairResolution
+  resolved_by?: string
+  notes?: string
+  reported_at: string
+  resolved_at?: string
+  // joined
+  assets?: Pick<Asset, 'id' | 'asset_no' | 'name' | 'category'>
+  spare_asset?: Pick<Asset, 'id' | 'asset_no' | 'name'>
 }

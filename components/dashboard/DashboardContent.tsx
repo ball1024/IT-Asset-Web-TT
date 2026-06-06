@@ -5,6 +5,8 @@ import type { Asset } from '@/lib/supabase'
 import { Package, Wrench, Archive, ChevronRight, ArrowLeft, Plus } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useRouter } from 'next/navigation'
+import { useRole } from '@/hooks/useRole'
+import { canEdit } from '@/lib/permissions'
 
 const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#06b6d4']
 
@@ -52,6 +54,7 @@ const GROUP_OPTIONS = [
 
 export default function DashboardContent() {
   const router = useRouter()
+  const { role } = useRole()
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [chartGroup, setChartGroup] = useState<'category' | 'department' | 'status'>('category')
@@ -141,10 +144,12 @@ export default function DashboardContent() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h2>
-        <button onClick={() => router.push('/assets/new')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-          <Plus size={14} /> Add Asset
-        </button>
+        {canEdit(role) && (
+          <button onClick={() => router.push('/assets/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+            <Plus size={14} /> Add Asset
+          </button>
+        )}
       </div>
 
       {/* Summary cards */}

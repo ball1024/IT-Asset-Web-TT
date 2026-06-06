@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Configure dark variant to use data-theme attribute */
+/* Dark mode ใช้ data-theme="dark" เท่านั้น — ไม่รับ OS/media query */
 @variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@layer base { :root { color-scheme: light; } }
 
 [data-theme="light"], :root {
   --background: #ffffff;
