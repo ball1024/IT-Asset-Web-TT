@@ -12,9 +12,10 @@ interface Props {
   onClose: () => void
   userId: string
   mode?: 'transfer' | 'assign'
+  onDoneWithCondition?: (empId: string) => void
 }
 
-export default function TransferModal({ asset, onDone, onClose, userId, mode = 'transfer' }: Props) {
+export default function TransferModal({ asset, onDone, onClose, userId, mode = 'transfer', onDoneWithCondition }: Props) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Employee | null>(null)
@@ -60,7 +61,11 @@ export default function TransferModal({ asset, onDone, onClose, userId, mode = '
     }
 
     setSaving(false)
-    onDone()
+    if (onDoneWithCondition) {
+      onDoneWithCondition(selected.emp_id)
+    } else {
+      onDone()
+    }
   }
 
   const inp = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'

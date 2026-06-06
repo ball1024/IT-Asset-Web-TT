@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { RepairRequest } from '@/lib/supabase'
@@ -36,7 +36,7 @@ export default function RepairsContent() {
   const [viewing, setViewing] = useState<{ repair: RepairRequest; no: number } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     const data = await getRepairRequests()
     setRepairs(data)
@@ -48,9 +48,19 @@ export default function RepairsContent() {
       setEmpNames(Object.fromEntries((emps ?? []).map(e => [e.emp_id, e.full_name_th])))
     }
     setLoading(false)
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  // Realtime: อัพเดตสถานะซ่อมทันทีเมื่อมีการเปลี่ยนแปลง
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('repairs-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'repair_requests' }, () => load())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [load])
 
   const filtered = useMemo(() =>
     filter === 'all' ? repairs : repairs.filter(r => r.status === filter),

@@ -7,8 +7,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { ids } = await req.json() as { ids: string[] }
-  if (!ids?.length) return NextResponse.json({})
+  const body = await req.json()
+  const ids: string[] = body?.ids
+
+  if (!Array.isArray(ids) || ids.length === 0) return NextResponse.json({})
+  if (ids.length > 100) return NextResponse.json({ error: 'Too many ids' }, { status: 400 })
+  if (!ids.every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id))) {
+    return NextResponse.json({ error: 'Invalid id format' }, { status: 400 })
+  }
 
   const service = await createServiceSupabase()
   const { data } = await service.auth.admin.listUsers({ perPage: 1000 })

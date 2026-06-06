@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Employee } from '@/lib/supabase'
 import { insertEmployeeLog } from '@/lib/logging'
@@ -24,12 +24,22 @@ export default function EmployeesContent() {
   const [editing, setEditing] = useState<Employee | null | 'new'>(null)
   const [showImport, setShowImport] = useState(false)
 
-  const load = () => {
+  const load = useCallback(() => {
     createClient().from('employees').select('*').order('emp_id')
       .then(({ data }) => { setEmployees(data ?? []); setLoading(false) })
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  // Realtime: อัพเดตรายชื่อพนักงานทันทีเมื่อมีการเปลี่ยนแปลง
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('employees-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => load())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [load])
 
   const depts = useMemo(() => [...new Set(employees.map(e => e.department).filter(Boolean))], [employees])
   const branches = useMemo(() => [...new Set(employees.map(e => e.branch).filter(Boolean))], [employees])

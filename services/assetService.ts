@@ -4,10 +4,16 @@ import type { Asset } from '@/lib/supabase'
 export async function getAssets() {
   const { data, error } = await createClient()
     .from('assets')
-    .select('*, employees(full_name_th, full_name_en, department), vendors(id, name)')
+    .select(`
+      id, asset_no, name, category, brand, model, serial_no,
+      status, location, purchase_date, received_date, original_price,
+      notes, images, emp_id, department, vendor_id, created_by, created_at, updated_at,
+      employees(full_name_th, full_name_en, department),
+      vendors(id, name)
+    `)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return (data ?? []) as Asset[]
+  return (data ?? []) as unknown as Asset[]
 }
 
 export async function getAssetById(id: string) {

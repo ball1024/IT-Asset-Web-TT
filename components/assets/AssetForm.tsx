@@ -215,7 +215,10 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
         model: 'รุ่น', serial_no: 'Serial No.', status: 'สถานะ', location: 'ที่ตั้ง',
         purchase_date: 'วันที่ซื้อ', received_date: 'วันที่ได้รับ',
         original_price: 'มูลค่าเริ่มต้น', vendor_id: 'Vendor', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
+        apple_id: 'Apple ID',
       }
+      // field ที่ไม่แสดงค่า (sensitive)
+      const CENSORED_FIELDS = new Set(['apple_id'])
       const DATE_FIELDS = new Set(['purchase_date', 'received_date'])
       const STATUS_LABELS: Record<string, string> = {
         available: 'ว่าง', issued: 'จ่าย', returned: 'รับคืน',
@@ -238,6 +241,7 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
         .filter(k => normalize(k, String(form[k] ?? '')) !== normalize(k, String(initial?.[k] ?? '')))
         .map(k => {
           const label = FIELD_LABELS[k]
+          if (CENSORED_FIELDS.has(k)) return `แก้ไข ${label}`
           const oldVal = formatVal(k, String(initial?.[k] ?? ''))
           const newVal = formatVal(k, String(form[k] ?? ''))
           return `${label}: ${oldVal} → ${newVal}`

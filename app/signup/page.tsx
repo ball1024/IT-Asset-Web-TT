@@ -70,11 +70,17 @@ export default function SignupPage() {
 
     // บันทึก username ลง profiles table
     if (data.user) {
-      await supabase.from('profiles').insert({
+      const { error: profileErr } = await supabase.from('profiles').insert({
         id: data.user.id,
         username: form.username.toLowerCase().trim(),
         email: form.email.toLowerCase().trim(),
       })
+
+      if (profileErr) {
+        setError('สมัครสำเร็จแต่บันทึกข้อมูลโปรไฟล์ไม่ได้ กรุณาติดต่อผู้ดูแลระบบ')
+        setLoading(false)
+        return
+      }
     }
 
     setSuccess(true)

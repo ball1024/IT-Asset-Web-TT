@@ -87,6 +87,66 @@ export interface AssetLog {
   created_at: string
 }
 
+export type ConditionRating = 'new' | 'good' | 'fair' | 'poor'
+
+export interface ConditionCheck {
+  id: string
+  asset_id: string
+  check_type: 'handover' | 'return'
+  overall_condition?: ConditionRating
+  condition_items: Record<string, ConditionRating>
+  item_details: Record<string, string>
+  // เช่น { battery_pct: "85", screen_detail: "scratch", body_detail: "minor_scratch" }
+  accessories: Record<string, boolean>
+  notes?: string
+  performed_by?: string
+  emp_id?: string
+  created_at: string
+}
+
+export const CONDITION_ITEMS_BY_CATEGORY: Record<string, string[]> = {
+  notebook:   ['battery', 'screen', 'keyboard', 'body', 'ports'],
+  macbook:    ['battery', 'screen', 'keyboard', 'body', 'ports'],
+  laptop:     ['battery', 'screen', 'keyboard', 'body', 'ports'],
+  'pc desktop': ['screen', 'keyboard', 'mouse', 'body', 'cables'],
+  desktop:    ['screen', 'keyboard', 'mouse', 'body', 'cables'],
+  imac:       ['screen', 'keyboard', 'mouse', 'body', 'cables'],
+  android:    ['battery', 'screen', 'body', 'charger'],
+  ios:        ['battery', 'screen', 'body', 'charger'],
+  mobile:     ['battery', 'screen', 'body', 'charger'],
+  ipad:       ['battery', 'screen', 'body', 'charger'],
+  tablet:     ['battery', 'screen', 'body', 'charger'],
+  monitor:    ['screen', 'body', 'cables'],
+  default:    ['body'],
+}
+
+export const ACCESSORIES_BY_CATEGORY: Record<string, string[]> = {
+  notebook:   ['adapter', 'bag', 'mouse'],
+  macbook:    ['adapter'],
+  laptop:     ['adapter', 'bag', 'mouse'],
+  'pc desktop': ['monitor_cable', 'power_cable', 'keyboard', 'mouse'],
+  desktop:    ['monitor_cable', 'power_cable'],
+  imac:       ['keyboard', 'mouse', 'power_cable'],
+  android:    ['charger', 'case'],
+  ios:        ['charger', 'case'],
+  mobile:     ['charger', 'case'],
+  ipad:       ['charger', 'case', 'keyboard'],
+  tablet:     ['charger', 'case', 'keyboard'],
+  default:    [],
+}
+
+export const CONDITION_ITEM_LABELS: Record<string, string> = {
+  battery: 'แบตเตอรี่', screen: 'จอภาพ', keyboard: 'แป้นพิมพ์',
+  body: 'สภาพตัวเครื่อง', ports: 'พอร์ต/ช่องเสียบ', mouse: 'เมาส์',
+  cables: 'สายเคเบิล', charger: 'ที่ชาร์จ',
+}
+
+export const ACCESSORY_LABELS: Record<string, string> = {
+  adapter: 'อะแดปเตอร์', bag: 'กระเป๋า', mouse: 'เมาส์',
+  monitor_cable: 'สายจอ', power_cable: 'สายไฟ',
+  keyboard: 'คีย์บอร์ด', charger: 'สายชาร์จ', case: 'เคส',
+}
+
 export type RepairStatus = 'pending' | 'in_progress' | 'resolved'
 export type RepairResolution = 'repaired' | 'replaced_spare' | 'replaced_new' | 'waiting_new'
 

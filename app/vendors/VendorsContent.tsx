@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase";
 import type { Vendor } from "@/lib/supabase";
 import {
   getVendors,
@@ -26,10 +27,6 @@ import {
   Package,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  createVendor as createVendorSvc,
-  updateVendor as updateVendorSvc,
-} from "@/services/vendorService";
 import * as XLSX from "xlsx";
 
 const EMPTY = {
@@ -84,9 +81,9 @@ function VendorModal({
       notes: form.notes || undefined,
     };
     if (vendor?.id) {
-      await updateVendorSvc(vendor.id, payload);
+      await updateVendor(vendor.id, payload);
     } else {
-      await createVendorSvc(payload as any);
+      await createVendor(payload as any);
     }
     setSaving(false);
     onSave();
@@ -444,7 +441,7 @@ export default function VendorsContent() {
   const [showImport, setShowImport] = useState(false);
   const [assetCounts, setAssetCounts] = useState<Record<string, number>>({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [v, counts] = await Promise.all([
       getVendors(),
       getVendorAssetCounts(),
@@ -452,11 +449,9 @@ export default function VendorsContent() {
     setVendors(v);
     setAssetCounts(counts);
     setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
   }, []);
+
+  useEffect(() => { load() }, [load]);
 
   const del = async (v: Vendor) => {
     await deleteVendor(v.id);
@@ -684,8 +679,5 @@ export default function VendorsContent() {
       )}
     </div>
   );
-}
-function createClient() {
-  throw new Error("Function not implemented.");
 }
 

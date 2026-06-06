@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { createClient } from '@/lib/supabase'
 import { useSearchParams, useRouter } from 'next/navigation'
 import type { Asset } from '@/lib/supabase'
 import { getAssets } from '@/services/assetService'
@@ -56,14 +57,25 @@ export default function AssetsPageContent() {
 
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([])
 
-  const load = () => {
+  const load = useCallback(() => {
     getAssets().then(data => { setAssets(data); setLoading(false) })
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
   useEffect(() => {
     getVendors().then(data => setVendors(data))
   }, [])
+
+  // Realtime: อัพเดต asset list ทันทีเมื่อมีการเปลี่ยนแปลง
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('assets-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => load())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [load])
 
   const depts = useMemo(() => {
     const s = new Set(assets.map(a => (a.employees as any)?.department).filter(Boolean))

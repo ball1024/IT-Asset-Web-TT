@@ -34,7 +34,8 @@ export function useLicenseRequests(isAdmin: boolean) {
     if (!isAdmin) return
     loadPending()
 
-    const channel = createClient()
+    const supabase = createClient()
+    const channel = supabase
       .channel('license-requests-admin')
       .on('postgres_changes', {
         event: 'INSERT',
@@ -51,7 +52,7 @@ export function useLicenseRequests(isAdmin: boolean) {
       })
       .subscribe()
 
-    return () => { createClient().removeChannel(channel) }
+    return () => { supabase.removeChannel(channel) }
   }, [isAdmin, loadPending])
 
   const clearNewRequest = () => setNewRequest(null)
@@ -77,7 +78,8 @@ export function useMyLicenseNotifications(userId: string | null) {
     if (!userId) return
     load()
 
-    const channel = createClient()
+    const supabase = createClient()
+    const channel = supabase
       .channel(`license-requests-user-${userId}`)
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -97,7 +99,7 @@ export function useMyLicenseNotifications(userId: string | null) {
       })
       .subscribe()
 
-    return () => { createClient().removeChannel(channel) }
+    return () => { supabase.removeChannel(channel) }
   }, [userId, load])
 
   const clearLatestUpdate = () => setLatestUpdate(null)

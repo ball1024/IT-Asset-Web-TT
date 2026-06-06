@@ -18,11 +18,17 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { key } = await req.json()
-  if (!key?.startsWith('assets/')) return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+  if (typeof key !== 'string') return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+
+  // ป้องกัน path traversal เช่น assets/../../secret
+  const normalized = key.replace(/\\/g, '/').replace(/\/\.\.?\//g, '/')
+  if (!normalized.startsWith('assets/') || normalized.includes('..')) {
+    return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+  }
 
   const url = await getSignedUrl(s3, new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME!,
-    Key: key,
+    Key: normalized,
     ContentType: 'image/webp',
   }), { expiresIn: 300 })
 
