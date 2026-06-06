@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Asset, Employee } from '@/lib/supabase'
+import type { Asset, Employee, Vendor } from '@/lib/supabase'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import { compressImage } from '@/lib/compressImage'
 import { assetImageKey, getNextImageIndex } from '@/lib/r2'
@@ -12,17 +12,24 @@ import Fuse from 'fuse.js'
 
 const CATEGORIES = ['Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 const STATUSES = [
-  { value: 'active', label: 'ใช้งาน' }, { value: 'available', label: 'ว่าง' },
-  { value: 'repair', label: 'ซ่อม' }, { value: 'storage', label: 'Stock' },
+  { value: 'available', label: 'ว่าง' },
+  { value: 'issued',    label: 'จ่าย' },
+  { value: 'returned',  label: 'รับคืน' },
+  { value: 'damaged',   label: 'ชำรุด' },
+  { value: 'repair',    label: 'ส่งซ่อม' },
+  { value: 'writeoff',  label: 'Write Off' },
+  { value: 'hold',      label: 'Hold' },
+  { value: 'spare',     label: 'Spare' },
 ]
 
 interface Props {
   initial?: Partial<Asset>
   userId: string
   onSave?: (id: string) => void
+  onCancel?: () => void
 }
 
-export default function AssetForm({ initial, userId, onSave }: Props) {
+export default function AssetForm({ initial, userId, onSave, onCancel }: Props) {
   const router = useRouter()
   const isEdit = !!initial?.id
   const fileRef = useRef<HTMLInputElement>(null)
@@ -38,12 +45,21 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     status: initial?.status ?? 'available',
     location: initial?.location ?? '',
     purchase_date: initial?.purchase_date ?? '',
+    received_date: initial?.received_date ?? '',
+    original_price: initial?.original_price?.toString() ?? '',
+    vendor_id: initial?.vendor_id ?? '',
     notes: initial?.notes ?? '',
     emp_id: initial?.emp_id ?? '',
     department: (initial as any)?.department ?? '',
   })
 
   const [deptFromEmp, setDeptFromEmp] = useState(true)
+  const [vendors, setVendors] = useState<Vendor[]>([])
+
+  useEffect(() => {
+    createClient().from('vendors').select('id, name, phone, email').order('name')
+      .then(({ data }) => setVendors(data ?? []))
+  }, [])
 
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [allEmployees, setAllEmployees] = useState<Employee[]>([])
@@ -98,14 +114,14 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
 
   const selectEmployee = (emp: Employee) => {
     setEmployee(emp)
-    setForm(f => ({ ...f, emp_id: emp.emp_id, status: 'active', ...(deptFromEmp ? { department: emp.department ?? '' } : {}) }))
+    setForm(f => ({ ...f, emp_id: emp.emp_id, status: 'issued', ...(deptFromEmp ? { department: emp.department ?? '' } : {}) }))
     setEmpQuery(emp.full_name_th)
     setShowEmpDrop(false)
   }
 
   const clearEmployee = () => {
     setEmployee(null)
-    setForm(f => ({ ...f, emp_id: '', status: 'available', ...(deptFromEmp ? { department: '' } : {}) }))
+    setForm(f => ({ ...f, emp_id: '', status: 'returned', ...(deptFromEmp ? { department: '' } : {}) }))
     setEmpQuery('')
     setEmpResults([])
   }
@@ -178,18 +194,50 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
     if (assetNoError) return
     setSaving(true)
     const supabase = createClient()
-    const payload = { ...form, emp_id: form.emp_id || null, purchase_date: form.purchase_date || null, department: form.department || null }
+    const payload = {
+      ...form,
+      emp_id: form.emp_id || null,
+      purchase_date: form.purchase_date || null,
+      received_date: form.received_date || null,
+      original_price: form.original_price ? parseFloat(form.original_price) : null,
+      vendor_id: form.vendor_id || null,
+      department: form.department || null,
+    }
 
     if (isEdit) {
       const FIELD_LABELS: Record<string, string> = {
         asset_no: 'Asset No.', name: 'ชื่อ', category: 'ประเภท', brand: 'ยี่ห้อ',
         model: 'รุ่น', serial_no: 'Serial No.', status: 'สถานะ', location: 'ที่ตั้ง',
-        purchase_date: 'วันที่ซื้อ', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
+        purchase_date: 'วันที่ซื้อ', received_date: 'วันที่ได้รับ',
+        original_price: 'มูลค่าเริ่มต้น', vendor_id: 'Vendor', notes: 'หมายเหตุ', emp_id: 'พนักงาน',
       }
-      const changed = (Object.keys(form) as (keyof typeof form)[])
-        .filter(k => (form[k] ?? '') !== (initial?.[k] ?? ''))
-        .map(k => FIELD_LABELS[k] ?? k)
-      const detail = changed.length ? changed.join(', ') : undefined
+      const DATE_FIELDS = new Set(['purchase_date', 'received_date'])
+      const STATUS_LABELS: Record<string, string> = {
+        available: 'ว่าง', issued: 'จ่าย', returned: 'รับคืน',
+        damaged: 'ชำรุด', repair: 'ส่งซ่อม', writeoff: 'Write Off',
+        hold: 'Hold', spare: 'Spare',
+        active: 'จ่าย', storage: 'ว่าง', // legacy
+      }
+      // map vendor_id → vendor name
+      const vendorMap = Object.fromEntries(vendors.map(v => [v.id, v.name]))
+      const formatVal = (k: string, v: string) => {
+        if (!v) return '(ว่าง)'
+        if (DATE_FIELDS.has(k)) return new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+        if (k === 'status') return STATUS_LABELS[v] ?? v
+        if (k === 'vendor_id') return vendorMap[v] ?? v
+        return v
+      }
+      const normalize = (k: string, v: string) => DATE_FIELDS.has(k) ? v.slice(0, 10) : v
+      const changedLines = (Object.keys(form) as (keyof typeof form)[])
+        .filter(k => k in FIELD_LABELS)
+        .filter(k => normalize(k, String(form[k] ?? '')) !== normalize(k, String(initial?.[k] ?? '')))
+        .map(k => {
+          const label = FIELD_LABELS[k]
+          const oldVal = formatVal(k, String(initial?.[k] ?? ''))
+          const newVal = formatVal(k, String(form[k] ?? ''))
+          return `${label}: ${oldVal} → ${newVal}`
+        })
+      const detail = changedLines.length ? changedLines.join('\n') : undefined
       await supabase.from('assets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', initial!.id!)
       await insertAssetLog({ asset_id: initial!.id!, action: 'updated', performed_by: userId, detail })
       onSave?.(initial!.id!)
@@ -226,11 +274,15 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
   const inp = 'w-full border border-gray-300 dark:border-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 placeholder-gray-400 dark:placeholder-gray-400'
   const lbl = 'block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1'
 
+  const sec = 'md:col-span-2 pt-4 mt-2 border-t border-gray-100 dark:border-gray-700'
+  const secLabel = 'text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3'
+
   return (
     <>
       {scanner && <BarcodeScannerModal target={scanner} onResult={onScanResult} onClose={() => setScanner(null)} />}
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
 
+        {/* ── ข้อมูลหลัก ── */}
         {/* Asset No */}
         <div>
           <label className={lbl}>Asset No. *</label>
@@ -288,20 +340,19 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           </div>
         </div>
 
-        {/* Purchase Date */}
-        <div>
-          <label className={lbl}>วันที่ซื้อ</label>
-          <input type="date" value={form.purchase_date} onChange={set('purchase_date')} className={inp} />
-        </div>
-
         {/* Location */}
         <div>
           <label className={lbl}>Location</label>
           <input value={form.location} onChange={set('location')} className={inp} />
         </div>
 
+        {/* ── การมอบหมาย ── */}
+        <div className={sec}>
+          <p className={secLabel}>การมอบหมาย</p>
+        </div>
+
         {/* Employee search combobox */}
-        <div ref={empRef} className="relative">
+        <div ref={empRef} className="relative md:col-span-2">
           <label className={lbl}>พนักงาน</label>
           <div className="relative">
             <input
@@ -386,10 +437,71 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
           </select>
         </div>
 
+        {/* Received Date — อยู่ใต้แผนก ในกลุ่มการมอบหมาย */}
+        <div>
+          <label className={lbl}>วันที่ได้รับ</label>
+          <input type="date" value={form.received_date} onChange={set('received_date')} className={inp} />
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">วันที่พนักงานรับเครื่องไป</p>
+        </div>
+
+        {/* ── มูลค่าและวันที่ซื้อ ── */}
+        <div className={sec}>
+          <p className={secLabel}>มูลค่าและวันที่ซื้อ</p>
+        </div>
+
+        {/* Vendor */}
+        <div className="md:col-span-2">
+          <label className={lbl}>Vendor / ซื้อจาก</label>
+          <select value={form.vendor_id} onChange={e => setForm(f => ({ ...f, vendor_id: e.target.value }))} className={inp}>
+            <option value="">— ไม่ระบุ —</option>
+            {vendors.map(v => (
+              <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ''}</option>
+            ))}
+          </select>
+          {form.vendor_id && (() => {
+            const v = vendors.find(v => v.id === form.vendor_id)
+            return v?.email ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
+                📧 {v.email}
+              </p>
+            ) : null
+          })()}
+        </div>
+
+        {/* Original Price */}
+        <div>
+          <label className={lbl}>มูลค่าทรัพย์สิน (บาท)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.original_price}
+            onChange={set('original_price')}
+            placeholder="0.00"
+            className={inp}
+          />
+          {form.original_price && parseFloat(form.original_price) > 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              ตัดค่าเสื่อม {(parseFloat(form.original_price) / 60).toLocaleString('th-TH', { maximumFractionDigits: 2 })} บาท/เดือน
+            </p>
+          )}
+        </div>
+
+        {/* Purchase Date */}
+        <div>
+          <label className={lbl}>วันที่ซื้อ</label>
+          <input type="date" value={form.purchase_date} onChange={set('purchase_date')} className={inp} />
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">ใช้คำนวณ Book Valued</p>
+        </div>
+
+        {/* ── หมายเหตุ ── */}
+        <div className={sec}>
+          <p className={secLabel}>หมายเหตุ</p>
+        </div>
+
         {/* Notes */}
         <div className="md:col-span-2">
-          <label className={lbl}>หมายเหตุ</label>
-          <textarea value={form.notes} onChange={set('notes')} rows={2} className={inp} />
+          <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="หมายเหตุเพิ่มเติม..." className={inp} />
         </div>
 
         {/* รูปภาพ — เฉพาะ Add mode */}
@@ -436,7 +548,7 @@ export default function AssetForm({ initial, userId, onSave }: Props) {
 
         {/* Buttons */}
         <div className="md:col-span-2 flex gap-3 justify-end">
-          <button type="button" onClick={() => router.back()}
+          <button type="button" onClick={() => onCancel ? onCancel() : router.back()}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             ยกเลิก
           </button>

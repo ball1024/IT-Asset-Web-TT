@@ -8,10 +8,17 @@ import { createClient } from '@/lib/supabase'
 import { insertAssetLog } from '@/lib/logging'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  active:    { label: 'ใช้งาน', cls: 'bg-green-100 text-green-700' },
-  available: { label: 'ว่าง',   cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  repair:    { label: 'ซ่อม',   cls: 'bg-amber-100 text-amber-700' },
-  storage:   { label: 'Stock',  cls: 'bg-blue-100 text-blue-700' },
+  available: { label: 'ว่าง',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
+  issued:    { label: 'จ่าย',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
+  returned:  { label: 'รับคืน',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
+  damaged:   { label: 'ชำรุด',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
+  repair:    { label: 'ส่งซ่อม',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
+  writeoff:  { label: 'Write Off', cls: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' },
+  hold:      { label: 'Hold',      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
+  spare:     { label: 'Spare',     cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400' },
+  // legacy
+  active:    { label: 'จ่าย',     cls: 'bg-green-100 text-green-700' },
+  storage:   { label: 'ว่าง',     cls: 'bg-gray-100 text-gray-600' },
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -119,7 +126,7 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
           <tr>
-            {['Asset', 'ประเภท', 'ยี่ห้อ / รุ่น', 'Location', 'พนักงาน', 'แผนก', 'สถานะ', ''].map(h => (
+            {['Asset', 'ประเภท', 'ยี่ห้อ / รุ่น', 'พนักงาน', 'สถานะ', ''].map(h => (
               <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -151,9 +158,6 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
                 {/* Brand / Model */}
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">{[a.brand, a.model].filter(Boolean).join(' ') || '-'}</td>
 
-                {/* Location */}
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">{a.location || '-'}</td>
-
                 {/* Employee */}
                 <td className="px-4 py-3">
                   {(a.employees as any)?.full_name_th ? (
@@ -162,11 +166,6 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
                       <p className="text-xs text-gray-400 dark:text-gray-500">{a.emp_id}</p>
                     </div>
                   ) : <span className="text-gray-400 dark:text-gray-500 text-sm">-</span>}
-                </td>
-
-                {/* Department */}
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
-                  {(a as any).department || '-'}
                 </td>
 
                 {/* Status */}

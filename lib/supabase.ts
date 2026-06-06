@@ -38,17 +38,42 @@ export interface Asset {
   brand?: string
   model?: string
   serial_no?: string
-  status: 'active' | 'available' | 'repair' | 'storage'
+  status: 'available' | 'issued' | 'returned' | 'damaged' | 'repair' | 'writeoff' | 'hold' | 'spare'
   location?: string
   purchase_date?: string
+  received_date?: string
+  original_price?: number
   notes?: string
   images: string[]
   emp_id?: string
   department?: string
+  vendor_id?: string
   created_by?: string
   created_at?: string
   updated_at?: string
   employees?: Employee
+  vendors?: Vendor
+}
+
+export interface Vendor {
+  id: string
+  name: string
+  contact_name?: string
+  phone?: string
+  email?: string
+  website?: string
+  notes?: string
+  created_at?: string
+}
+
+export interface AssetLicense {
+  id: string
+  asset_id: string
+  name: string
+  license_key?: string
+  notes?: string
+  created_by?: string
+  created_at?: string
 }
 
 export interface AssetLog {

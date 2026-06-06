@@ -14,7 +14,7 @@ export function useUserNames(ids: (string | undefined | null)[]) {
       body: JSON.stringify({ ids: unique }),
     })
       .then(r => r.json())
-      .then(data => setNames(data))
+      .then(data => setNames(data.users ?? data))
       .catch(() => {})
   }, [ids.filter(Boolean).sort().join(',')])
 
