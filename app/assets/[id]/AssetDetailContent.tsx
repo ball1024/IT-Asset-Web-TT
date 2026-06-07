@@ -45,17 +45,17 @@ function calcDepreciation(originalPrice: number, receivedDate: string) {
 
 const R2_PUBLIC = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  available: { label: 'ว่าง',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  issued:    { label: 'จ่าย',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
-  returned:  { label: 'รับคืน',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
-  damaged:   { label: 'ชำรุด',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
-  repair:    { label: 'ส่งซ่อม',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
-  writeoff:  { label: 'Write Off', cls: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' },
-  hold:      { label: 'Hold',      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
-  spare:     { label: 'Spare',     cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400' },
-  active:    { label: 'จ่าย',     cls: 'bg-green-100 text-green-700' },
-  storage:   { label: 'ว่าง',     cls: 'bg-gray-100 text-gray-600' },
+const STATUS_MAP: Record<string, { label: string; cls: string; dot: string }> = {
+  available: { label: 'ว่าง', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
+  issued:    { label: 'จ่ายแล้ว',  cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800',       dot: 'bg-blue-500' },
+  returned:  { label: 'รับคืน',    cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800',   dot: 'bg-amber-500' },
+  damaged:   { label: 'ชำรุด',     cls: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800',              dot: 'bg-red-500' },
+  repair:    { label: 'ส่งซ่อม',   cls: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
+  writeoff:  { label: 'Write Off',  cls: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 border border-gray-300 dark:border-gray-700',           dot: 'bg-gray-400' },
+  hold:      { label: 'Hold',       cls: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800', dot: 'bg-purple-500' },
+  spare:     { label: 'Spare',      cls: 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800',         dot: 'bg-teal-500' },
+  active:    { label: 'จ่ายแล้ว',  cls: 'bg-blue-50 text-blue-700 border border-blue-200',    dot: 'bg-blue-500' },
+  storage:   { label: 'พร้อมจ่าย', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -111,6 +111,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
   const cameraRef = useRef<HTMLInputElement>(null)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [alertDialog, setAlertDialog] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const [showUnassignModal, setShowUnassignModal] = useState(false)
+  const [unassignReason, setUnassignReason] = useState<'swap' | 'resign' | 'unused' | ''>('')
   const loadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = async () => {
@@ -220,6 +222,82 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium">
                 ยืนยัน
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unassign Modal — เลือกเหตุผลก่อนถอดผู้ใช้งาน */}
+      {showUnassignModal && employee && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => { setShowUnassignModal(false); setUnassignReason('') }}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-400" />
+            <div className="p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">เอาผู้ใช้งานออก</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    {employee.full_name_th} · {employee.emp_id}
+                  </p>
+                </div>
+                <button onClick={() => { setShowUnassignModal(false); setUnassignReason('') }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">เหตุผลที่รับคืน</p>
+              <div className="space-y-2 mb-5">
+                {([
+                  { value: 'swap',   icon: '🔄', label: 'เปลี่ยนเครื่อง',         desc: 'พนักงานได้เครื่องใหม่แทน' },
+                  { value: 'resign', icon: '🚪', label: 'พนักงานลาออก / โอนย้าย', desc: 'คืนเครื่องเนื่องจากพ้นสภาพ' },
+                  { value: 'unused', icon: '📦', label: 'ไม่ได้ใช้งาน',            desc: 'ไม่จำเป็นต้องใช้แล้ว' },
+                ] as const).map(opt => (
+                  <label key={opt.value}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors
+                      ${unassignReason === opt.value
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'}`}>
+                    <input type="radio" name="reason" value={opt.value}
+                      checked={unassignReason === opt.value}
+                      onChange={() => setUnassignReason(opt.value)}
+                      className="accent-indigo-500 shrink-0" />
+                    <span className="text-lg shrink-0">{opt.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{opt.label}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => { setShowUnassignModal(false); setUnassignReason('') }}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  ยกเลิก
+                </button>
+                <button
+                  disabled={!unassignReason}
+                  onClick={async () => {
+                    const oldEmpId = employee.emp_id
+                    const reasonLabel = unassignReason === 'swap' ? 'เปลี่ยนเครื่อง'
+                      : unassignReason === 'resign' ? 'พนักงานลาออก/โอนย้าย'
+                      : 'ไม่ได้ใช้งาน'
+                    setShowUnassignModal(false)
+                    setUnassignReason('')
+                    await updateAsset(id, { emp_id: null, status: 'returned' })
+                    await insertAssetLog({
+                      asset_id: id, action: 'unassigned', performed_by: userId,
+                      detail: `${employee.emp_id} ${employee.full_name_th} — ${reasonLabel}`,
+                    })
+                    setConditionCheck({ type: 'return', empId: oldEmpId })
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  ยืนยัน
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -425,7 +503,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{asset.name}</p>
                 <div className="flex gap-1.5 mt-1 flex-wrap">
                   <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">{asset.category}</span>
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.cls}`}>{status.label}</span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full ${status.cls}`}><span className={`w-1.5 h-1.5 rounded-full shrink-0 ${status.dot}`} />{status.label}</span>
                   {asset.location && <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">{asset.location}</span>}
                 </div>
               </div>
@@ -448,7 +526,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{asset.name}</p>
                 <div className="flex gap-1.5 mt-0.5 flex-wrap">
                   <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">{asset.category}</span>
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.cls}`}>{status.label}</span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full ${status.cls}`}><span className={`w-1.5 h-1.5 rounded-full shrink-0 ${status.dot}`} />{status.label}</span>
                   {asset.location && <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">{asset.location}</span>}
                 </div>
               </div>
@@ -757,16 +835,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                       </button>
                     )}
                     {canEdit(role) && (
-                      <button onClick={() => setAlertDialog({
-                        title: 'เอาผู้ใช้งานออก',
-                        message: `ถอด ${employee.full_name_th} ออกจาก Asset นี้ใช่ไหม?`,
-                        onConfirm: async () => {
-                          const oldEmpId = employee.emp_id
-                          await updateAsset(id, { emp_id: null, status: 'returned' })
-                          await insertAssetLog({ asset_id: id, action: 'unassigned', performed_by: userId, detail: `${employee.emp_id} ${employee.full_name_th}` })
-                          setConditionCheck({ type: 'return', empId: oldEmpId })
-                        },
-                      })}
+                      <button onClick={() => setShowUnassignModal(true)}
                         className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                         <X size={12} /> เอาผู้ใช้งานออก
                       </button>
@@ -775,13 +844,31 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 ) : (
                   <div className="text-center py-4 space-y-2">
                     <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto">
-                      <span className="text-2xl">👤</span>
+                      <span className="text-2xl">{asset.status === 'returned' ? '📥' : '👤'}</span>
                     </div>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">ยังไม่ได้มอบหมาย</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                      {asset.status === 'returned' ? 'รับคืนแล้ว — รอตรวจสอบ' : 'ยังไม่ได้มอบหมาย'}
+                    </p>
+
+                    {/* ปุ่มตั้งเป็นพร้อมจ่าย (เฉพาะ returned) */}
+                    {asset.status === 'returned' && canEdit(role) && (
+                      <button onClick={() => setAlertDialog({
+                        title: 'ตั้งเป็นพร้อมจ่าย',
+                        message: 'ยืนยันว่าเครื่องผ่านการตรวจสอบแล้ว และพร้อมจ่ายให้พนักงานคนใหม่?',
+                        onConfirm: async () => {
+                          await updateAsset(id, { status: 'available' })
+                          await insertAssetLog({ asset_id: id, action: 'updated', performed_by: userId, detail: 'ตั้งสถานะเป็นพร้อมจ่าย (ผ่านการตรวจสอบแล้ว)' })
+                        },
+                      })}
+                        className="flex items-center gap-1.5 mx-auto px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors">
+                        ✅ ตั้งเป็นพร้อมจ่าย
+                      </button>
+                    )}
+
                     {canTransfer(role) && (
                       <button onClick={() => setShowTransfer(true)}
                         className="flex items-center gap-1.5 mx-auto px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors">
-                        <ArrowLeftRight size={12} /> เพิ่มผู้ใช้งาน
+                        <ArrowLeftRight size={12} /> {asset.status === 'returned' ? 'จ่ายให้พนักงาน' : 'เพิ่มผู้ใช้งาน'}
                       </button>
                     )}
                   </div>

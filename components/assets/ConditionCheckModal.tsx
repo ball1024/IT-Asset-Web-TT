@@ -112,6 +112,11 @@ export default function ConditionCheckModal({ asset, checkType, empId, userId, o
   const toggleAcc = (key: string) =>
     setAccessories(prev => ({ ...prev, [key]: !prev[key] }))
 
+  const toggleAllAcc = () => {
+    const allChecked = accList.every(a => accessories[a])
+    setAccessories(prev => Object.fromEntries(accList.map(a => [a, !allChecked])))
+  }
+
   const accTotal = accList.length
   const accChecked = accList.filter(a => accessories[a]).length
 
@@ -284,15 +289,16 @@ export default function ConditionCheckModal({ asset, checkType, empId, userId, o
               <div className="flex items-center justify-between mb-2">
                 <p className={sectionTitle + ' mb-0'}>อุปกรณ์ที่มาด้วย</p>
                 {accTotal > 0 && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    accChecked === accTotal
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                      : accChecked === 0
-                      ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
-                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                  }`}>
-                    {accChecked === accTotal ? '✓ ครบทุกชิ้น' : `มี ${accChecked}/${accTotal} ชิ้น`}
-                  </span>
+                  <button type="button" onClick={toggleAllAcc}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                      accChecked === accTotal
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
+                        : accChecked === 0
+                        ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-indigo-100 hover:text-indigo-700 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-indigo-100 hover:text-indigo-700 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300'
+                    }`}>
+                    {accChecked === accTotal ? '✓ ครบทุกชิ้น' : `ติ๊กทั้งหมด (${accChecked}/${accTotal})`}
+                  </button>
                 )}
               </div>
               <div className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 space-y-2">

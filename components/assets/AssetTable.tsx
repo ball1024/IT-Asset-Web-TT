@@ -7,18 +7,18 @@ import { Trash2, AlertTriangle, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { insertAssetLog } from '@/lib/logging'
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  available: { label: 'ว่าง',      cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  issued:    { label: 'จ่าย',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
-  returned:  { label: 'รับคืน',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
-  damaged:   { label: 'ชำรุด',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
-  repair:    { label: 'ส่งซ่อม',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
-  writeoff:  { label: 'Write Off', cls: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' },
-  hold:      { label: 'Hold',      cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
-  spare:     { label: 'Spare',     cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400' },
+const STATUS_MAP: Record<string, { label: string; cls: string; dot: string }> = {
+  available: { label: 'ว่าง', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
+  issued:    { label: 'จ่ายแล้ว',  cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800',       dot: 'bg-blue-500' },
+  returned:  { label: 'รับคืน',    cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800',   dot: 'bg-amber-500' },
+  damaged:   { label: 'ชำรุด',     cls: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800',              dot: 'bg-red-500' },
+  repair:    { label: 'ส่งซ่อม',   cls: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
+  writeoff:  { label: 'Write Off',  cls: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 border border-gray-300 dark:border-gray-700',           dot: 'bg-gray-400' },
+  hold:      { label: 'Hold',       cls: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800', dot: 'bg-purple-500' },
+  spare:     { label: 'Spare',      cls: 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800',         dot: 'bg-teal-500' },
   // legacy
-  active:    { label: 'จ่าย',     cls: 'bg-green-100 text-green-700' },
-  storage:   { label: 'ว่าง',     cls: 'bg-gray-100 text-gray-600' },
+  active:    { label: 'จ่ายแล้ว',  cls: 'bg-blue-50 text-blue-700 border border-blue-200',   dot: 'bg-blue-500' },
+  storage:   { label: 'พร้อมจ่าย', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -133,9 +133,7 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
         </thead>
         <tbody>
           {paged.map(a => {
-            const hasEmployee = !!(a.employees as any)?.full_name_th
-            const displayStatus = hasEmployee && a.status === 'available' ? 'active' : a.status
-            const s = STATUS_MAP[displayStatus] ?? { label: displayStatus, cls: 'bg-gray-100 text-gray-600' }
+            const s = STATUS_MAP[a.status] ?? { label: a.status, cls: 'bg-gray-100 text-gray-600 border border-gray-200', dot: 'bg-gray-400' }
             return (
               <tr key={a.id}
                 onClick={() => router.push(`/assets/${a.id}`)}
@@ -170,11 +168,14 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
 
                 {/* Status */}
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.cls}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
+                    {s.label}
+                  </span>
                   {a.status === 'repair' && (() => {
                     const active = (a.repair_requests ?? []).find(r => r.status !== 'resolved')
                     return active?.case_no
-                      ? <p className="text-xs font-mono text-amber-600 dark:text-amber-400 mt-0.5">{active.case_no}</p>
+                      ? <p className="text-xs font-mono text-orange-600 dark:text-orange-400 mt-0.5">{active.case_no}</p>
                       : null
                   })()}
                 </td>

@@ -10,8 +10,8 @@ import AssetTable from '@/components/assets/AssetTable'
 import ImportExcelModal from '@/components/assets/ImportExcelModal'
 import BarcodeScannerModal from '@/components/assets/BarcodeScannerModal'
 import { useRole } from '@/hooks/useRole'
-import { canImportExport } from '@/lib/permissions'
-import { Search, Download, Upload, ScanLine, X } from 'lucide-react'
+import { canImportExport, canEdit } from '@/lib/permissions'
+import { Search, Download, Upload, ScanLine, X, Plus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
@@ -116,16 +116,24 @@ export default function AssetsPageContent() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">All Assets</h2>
-          {canImportExport(role) && (
-            <div className="flex gap-2">
-              <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                <Upload size={14} /> Import
+          <div className="flex gap-2">
+            {canEdit(role) && (
+              <button onClick={() => router.push('/assets/new')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+                <Plus size={14} /> Add Asset
               </button>
-              <button onClick={exportXlsx} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                <Download size={14} /> Export
-              </button>
-            </div>
-          )}
+            )}
+            {canImportExport(role) && (
+              <>
+                <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <Upload size={14} /> Import
+                </button>
+                <button onClick={exportXlsx} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <Download size={14} /> Export
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
