@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Asset, RepairRequest, RepairResolution } from '@/lib/supabase'
-import { assignSpare, resolveRepair } from '@/services/repairService'
-import { X, Wrench, Loader2, Package, Search, CheckCircle2, ChevronRight, ArrowLeft } from 'lucide-react'
+import { assignSpare, resolveRepair, confirmNewAssetReceived } from '@/services/repairService'
+import { X, Wrench, Loader2, Package, Search, CheckCircle2, ChevronRight, ArrowLeft, Clock } from 'lucide-react'
 
 interface Props {
   repair: RepairRequest
@@ -14,7 +14,7 @@ interface Props {
 
 const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
 
-type Step = 'accept' | 'result'
+type Step = 'accept' | 'result' | 'link_new_asset'
 
 function StepBar({ current }: { current: Step }) {
   const steps = [
@@ -45,8 +45,10 @@ function StepBar({ current }: { current: Step }) {
 }
 
 export default function ResolveRepairModal({ repair, userId, onDone, onClose }: Props) {
-  // ถ้า in_progress แล้ว ข้ามไป result ได้เลย
-  const [step, setStep] = useState<Step>(repair.status === 'in_progress' ? 'result' : 'accept')
+  // ถ้ารอเครื่องใหม่อยู่ → ข้ามไปหน้าเลือกเครื่องใหม่ทันที
+  const initialStep: Step = repair.resolution === 'waiting_new' ? 'link_new_asset'
+    : repair.status === 'in_progress' ? 'result' : 'accept'
+  const [step, setStep] = useState<Step>(initialStep)
 
   // spare
   const [hasSpare, setHasSpare] = useState(false)
@@ -58,12 +60,26 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
   const [acceptNotes, setAcceptNotes] = useState('')
 
   // result
-  const [resultChoice, setResultChoice] = useState<'old' | 'new' | null>(null)
-  const [newReceived, setNewReceived] = useState<boolean | null>(null)
+  const [resultChoice, setResultChoice] = useState<'old' | 'new' | 'waiting' | null>(null)
   const [resultNotes, setResultNotes] = useState(repair.notes ?? '')
   const [saving, setSaving] = useState(false)
 
+  // link_new_asset
+  const [newAssetQuery, setNewAssetQuery] = useState('')
+  const [newAssetCategory, setNewAssetCategory] = useState('ทั้งหมด')
+  const [availableAssets, setAvailableAssets] = useState<Asset[]>([])
+  const [selectedNewAsset, setSelectedNewAsset] = useState<Asset | null>(null)
+
   const assetInfo = repair.assets as any
+
+  useEffect(() => {
+    if (step === 'link_new_asset') {
+      const supabase = createClient()
+      supabase.from('assets').select('id,asset_no,name,category')
+        .eq('status', 'available').order('category')
+        .then(({ data }) => setAvailableAssets((data ?? []) as Asset[]))
+    }
+  }, [step])
 
   useEffect(() => {
     const supabase = createClient()
@@ -113,17 +129,11 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
   // Step 2: บันทึกผล
   const handleResolve = async () => {
     if (!resultChoice) return
-    if (resultChoice === 'new' && newReceived === null) return
     setSaving(true)
 
-    let resolution: RepairResolution
-    if (resultChoice === 'old') {
-      resolution = 'repaired'
-    } else if (newReceived) {
-      resolution = 'replaced_new'
-    } else {
-      resolution = 'waiting_new'
-    }
+    const resolution: RepairResolution = resultChoice === 'old' ? 'repaired'
+      : resultChoice === 'waiting' ? 'waiting_new'
+      : 'replaced_new'
 
     await resolveRepair({
       repairId: repair.id,
@@ -137,7 +147,33 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
     onDone()
   }
 
-  const canSaveResult = resultChoice !== null && (resultChoice !== 'new' || newReceived !== null)
+  // Step 3: ยืนยันรับเครื่องใหม่
+  const handleLinkNewAsset = async () => {
+    if (!selectedNewAsset) return
+    setSaving(true)
+    const supabase = createClient()
+    const { data: origAsset } = await supabase.from('assets').select('emp_id').eq('id', repair.asset_id).single()
+    await confirmNewAssetReceived({
+      repairId: repair.id,
+      newAssetId: selectedNewAsset.id,
+      empId: origAsset?.emp_id ?? null,
+      spareAssetId: currentSpare?.id || repair.spare_asset_id || undefined,
+      notes: resultNotes.trim() || undefined,
+      performed_by: userId,
+    })
+    setSaving(false)
+    onDone()
+  }
+
+  const filteredNewAssets = availableAssets.filter(a => {
+    const matchCat = newAssetCategory === 'ทั้งหมด' || a.category === newAssetCategory
+    const matchQ = !newAssetQuery.trim() ||
+      a.asset_no.toLowerCase().includes(newAssetQuery.toLowerCase()) ||
+      a.name.toLowerCase().includes(newAssetQuery.toLowerCase())
+    return matchCat && matchQ
+  })
+
+  const canSaveResult = resultChoice !== null
   const inp = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
   return (
@@ -149,6 +185,7 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <Wrench size={16} /> จัดการงานซ่อม
+              {repair.case_no && <span className="font-mono text-sm text-indigo-600 dark:text-indigo-400">{repair.case_no}</span>}
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {assetInfo?.asset_no} — {assetInfo?.name}
@@ -263,6 +300,86 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
             </>
           )}
 
+          {/* ══ STEP 3: เลือกเครื่องใหม่ (หลังรอมาแล้ว) ══ */}
+          {step === 'link_new_asset' && (
+            <>
+              <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
+                <Clock size={15} className="text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">รอเครื่องใหม่</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">เลือกเครื่องใหม่จากระบบเพื่อปิดงานซ่อมนี้</p>
+                </div>
+              </div>
+
+              {/* กรองประเภท */}
+              <div className="flex gap-1.5 flex-wrap">
+                {CATEGORIES.filter(c => c === 'ทั้งหมด' || availableAssets.some(a => a.category === c)).map(cat => (
+                  <button key={cat} type="button" onClick={() => setNewAssetCategory(cat)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${newAssetCategory === cat ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-indigo-400'}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={newAssetQuery} onChange={e => setNewAssetQuery(e.target.value)}
+                  placeholder="ค้นหา Asset No. หรือชื่อ..." className={`${inp} pl-8`} />
+              </div>
+
+              {filteredNewAssets.length === 0
+                ? <p className="text-xs text-gray-400 text-center py-3">ไม่มีเครื่องว่าง — เพิ่ม Asset ใหม่เข้าระบบก่อน</p>
+                : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {filteredNewAssets.map(a => {
+                      const isSel = selectedNewAsset?.id === a.id
+                      return (
+                        <button key={a.id} type="button" onClick={() => setSelectedNewAsset(a)}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm flex items-center gap-3 transition-colors ${isSel ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-400' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 hover:border-indigo-300'}`}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSel ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 dark:border-gray-500'}`}>
+                            {isSel && <CheckCircle2 size={12} className="text-white" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">{a.asset_no}</p>
+                            <p className="text-gray-700 dark:text-gray-200 truncate text-xs">{a.name}</p>
+                          </div>
+                          <span className="text-xs text-gray-400 shrink-0 bg-gray-100 dark:bg-gray-600 px-1.5 py-0.5 rounded">{a.category}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+              {selectedNewAsset && (
+                <div className="flex items-center justify-between bg-indigo-100 dark:bg-indigo-900/40 rounded-lg px-3 py-2 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> <span className="font-mono">{selectedNewAsset.asset_no}</span> — {selectedNewAsset.name}
+                  </span>
+                  <button type="button" onClick={() => setSelectedNewAsset(null)} className="text-indigo-400 hover:text-indigo-600 ml-2">
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">หมายเหตุ</label>
+                <textarea value={resultNotes} onChange={e => setResultNotes(e.target.value)} rows={2} className={inp} placeholder="รายละเอียดเพิ่มเติม..." />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={onClose}
+                  className="px-4 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+                  ปิด
+                </button>
+                <button type="button" onClick={handleLinkNewAsset} disabled={saving || !selectedNewAsset}
+                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  {saving ? 'กำลังบันทึก...' : '✅ ยืนยัน — ปิดงานซ่อม'}
+                </button>
+              </div>
+            </>
+          )}
+
           {/* ══ STEP 2: ผลลัพธ์ ══ */}
           {step === 'result' && (
             <>
@@ -277,47 +394,37 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
               {/* เลือกผล */}
               <div>
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">ผลการซ่อม</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => { setResultChoice('old'); setNewReceived(null) }}
-                    className={`p-4 rounded-xl border text-left transition-colors ${resultChoice === 'old' ? 'border-green-500 bg-green-50 dark:bg-green-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-green-400 hover:bg-green-50/40'}`}>
-                    <p className="text-2xl mb-1">🔧</p>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">เครื่องเดิม</p>
-                    <p className="text-xs text-gray-400 mt-0.5">ซ่อมเสร็จแล้ว</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => setResultChoice('old')}
+                    className={`p-3 rounded-xl border text-left transition-colors ${resultChoice === 'old' ? 'border-green-500 bg-green-50 dark:bg-green-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-green-400 hover:bg-green-50/40'}`}>
+                    <p className="text-xl mb-1">🔧</p>
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">ซ่อมได้</p>
+                    <p className="text-xs text-gray-400 mt-0.5">คืนเครื่องเดิม</p>
                   </button>
-                  <button type="button" onClick={() => { setResultChoice('new'); setNewReceived(null) }}
-                    className={`p-4 rounded-xl border text-left transition-colors ${resultChoice === 'new' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-indigo-400 hover:bg-indigo-50/40'}`}>
-                    <p className="text-2xl mb-1">🛒</p>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">เครื่องใหม่</p>
-                    <p className="text-xs text-gray-400 mt-0.5">ซ่อมไม่ได้</p>
+                  <button type="button" onClick={() => setResultChoice('waiting')}
+                    className={`p-3 rounded-xl border text-left transition-colors ${resultChoice === 'waiting' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-amber-400 hover:bg-amber-50/40'}`}>
+                    <p className="text-xl mb-1">⏳</p>
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">รอเครื่องใหม่</p>
+                    <p className="text-xs text-gray-400 mt-0.5">ยังไม่ได้รับ</p>
+                  </button>
+                  <button type="button" onClick={() => setResultChoice('new')}
+                    className={`p-3 rounded-xl border text-left transition-colors ${resultChoice === 'new' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-indigo-400 hover:bg-indigo-50/40'}`}>
+                    <p className="text-xl mb-1">🛒</p>
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">ได้เครื่องใหม่</p>
+                    <p className="text-xs text-gray-400 mt-0.5">รับแล้ว — ของเดิมชำรุด</p>
                   </button>
                 </div>
               </div>
 
-              {/* เครื่องใหม่ → ได้รับแล้วไหม */}
+              {resultChoice === 'waiting' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                  เครื่องเดิมจะถูกตั้งเป็น ชำรุด — เคสนี้ยังเปิดอยู่ กลับมาเลือกเครื่องใหม่ได้ภายหลัง
+                </p>
+              )}
               {resultChoice === 'new' && (
-                <div className="space-y-2 border border-indigo-100 dark:border-indigo-800 rounded-xl p-4 bg-indigo-50/30 dark:bg-indigo-900/10">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">ได้รับเครื่องใหม่แล้วหรือยัง?</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setNewReceived(true)}
-                      className={`py-3 rounded-xl border text-sm font-medium transition-colors ${newReceived === true ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-green-400'}`}>
-                      ✅ ได้รับแล้ว
-                    </button>
-                    <button type="button" onClick={() => setNewReceived(false)}
-                      className={`py-3 rounded-xl border text-sm font-medium transition-colors ${newReceived === false ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-amber-400'}`}>
-                      ⏳ ยังไม่ได้รับ
-                    </button>
-                  </div>
-                  {newReceived === false && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-                      เครื่องเดิมจะถูก writeoff — เคสนี้จะยังเปิดอยู่จนกว่าจะได้รับเครื่องใหม่
-                    </p>
-                  )}
-                  {newReceived === true && (
-                    <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
-                      เครื่องเดิม writeoff — เพิ่มเครื่องใหม่เข้าระบบแยกต่างหาก
-                    </p>
-                  )}
-                </div>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg px-3 py-2">
+                  เครื่องเดิมจะถูกตั้งเป็น ชำรุด — เพิ่มเครื่องใหม่เข้าระบบก่อน แล้วค่อยเลือกเชื่อมที่นี่
+                </p>
               )}
 
               <div>
@@ -338,10 +445,11 @@ export default function ResolveRepairModal({ repair, userId, onDone, onClose }: 
                   ปิด
                 </button>
                 <button type="button" onClick={handleResolve} disabled={saving || !canSaveResult}
-                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                  className={`flex-1 flex items-center justify-center gap-2 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 transition-colors
+                    ${resultChoice === 'waiting' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700'}`}>
                   {saving && <Loader2 size={14} className="animate-spin" />}
                   {saving ? 'กำลังบันทึก...'
-                    : resultChoice === 'new' && newReceived === false ? '⏳ บันทึก — รอเครื่องใหม่'
+                    : resultChoice === 'waiting' ? '⏳ บันทึก — รอเครื่องใหม่'
                     : '✅ บันทึกผล'}
                 </button>
               </div>

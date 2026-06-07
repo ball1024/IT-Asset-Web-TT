@@ -9,7 +9,8 @@ export async function getAssets() {
       status, location, purchase_date, received_date, original_price,
       notes, images, emp_id, department, vendor_id, created_by, created_at, updated_at,
       employees(full_name_th, full_name_en, department),
-      vendors(id, name)
+      vendors(id, name),
+      repair_requests!repair_requests_asset_id_fkey(case_no, status)
     `)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -36,7 +37,7 @@ export async function createAsset(payload: Partial<Asset> & { created_by: string
   return data as Asset
 }
 
-export async function updateAsset(id: string, payload: Partial<Asset>) {
+export async function updateAsset(id: string, payload: Omit<Partial<Asset>, 'emp_id'> & { emp_id?: string | null }) {
   const { error } = await createClient()
     .from('assets')
     .update({ ...payload, updated_at: new Date().toISOString() })

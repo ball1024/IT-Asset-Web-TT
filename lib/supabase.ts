@@ -54,6 +54,7 @@ export interface Asset {
   updated_at?: string
   employees?: Employee
   vendors?: Vendor
+  repair_requests?: Pick<RepairRequest, 'case_no' | 'status'>[]
 }
 
 export interface Vendor {
@@ -84,6 +85,7 @@ export interface AssetLog {
   detail?: string
   performed_by?: string
   repair_request_id?: string
+  case_no?: string
   created_at: string
 }
 
@@ -153,6 +155,7 @@ export type RepairResolution = 'repaired' | 'replaced_spare' | 'replaced_new' | 
 export interface RepairRequest {
   id: string
   asset_id: string
+  case_no?: string
   reported_by?: string
   issue: string
   status: RepairStatus

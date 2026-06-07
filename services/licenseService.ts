@@ -72,6 +72,15 @@ export async function rejectLicenseRequest(id: string) {
   if (error) throw error
 }
 
+export async function getLicenseRequests() {
+  const { data, error } = await createClient()
+    .from('license_view_requests')
+    .select('*, asset_licenses(name, asset_id, assets(asset_no, name))')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function deleteLicenseRequests(licenseIds: string[], userId: string) {
   const { error } = await createClient()
     .from('license_view_requests')

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useUserNames } from '@/hooks/useUserNames'
+import { getAllAssetLogsWithAssets, getAllEmployeeLogs } from '@/services/logService'
 import { useRole } from '@/hooks/useRole'
 import { canDelete } from '@/lib/permissions'
 import { Search, X } from 'lucide-react'
@@ -46,6 +46,7 @@ interface LogRow {
   type: 'asset' | 'employee'
   title: string
   sub?: string
+  case_no?: string
 }
 
 const inp = 'w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400 dark:placeholder-gray-500'
@@ -96,11 +97,8 @@ export default function LogsContent() {
   const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
-    const supabase = createClient()
-    Promise.all([
-      supabase.from('asset_logs').select('*, assets(asset_no, name)').order('created_at', { ascending: false }).limit(500),
-      supabase.from('employee_logs').select('*, employees(emp_id, full_name_th)').order('created_at', { ascending: false }).limit(500),
-    ]).then(([{ data: aLogs }, { data: eLogs }]) => {
+    Promise.all([getAllAssetLogsWithAssets(), getAllEmployeeLogs()])
+    .then(([aLogs, eLogs]) => {
       const assetRows: LogRow[] = (aLogs ?? []).map(l => {
         const [detailName, detailNo] = l.action === 'deleted' && !l.assets && l.detail
           ? l.detail.split('|') : [null, null]
@@ -109,6 +107,7 @@ export default function LogsContent() {
           performed_by: l.performed_by, created_at: l.created_at, type: 'asset',
           title: l.assets?.name ?? detailName ?? 'Asset',
           sub: l.assets?.asset_no ?? detailNo ?? undefined,
+          case_no: l.case_no,
         }
       })
       const empRows: LogRow[] = (eLogs ?? []).map(l => ({
@@ -259,6 +258,9 @@ export default function LogsContent() {
                         </>
                       )}
                     </div>
+                    {log.case_no && (
+                      <span className="text-xs font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded mt-0.5 inline-block">{log.case_no}</span>
+                    )}
                     {log.detail && log.action !== 'created' && log.action !== 'imported' && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{log.detail}</p>
                     )}

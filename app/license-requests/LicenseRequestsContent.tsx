@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
-import { approveLicenseRequest, rejectLicenseRequest } from '@/services/licenseService'
+import { approveLicenseRequest, rejectLicenseRequest, getLicenseRequests } from '@/services/licenseService'
 import { getEmployeeEmails } from '@/services/employeeService'
 import { useRole } from '@/hooks/useRole'
 import { canViewMembers } from '@/lib/permissions'
@@ -28,11 +27,8 @@ export default function LicenseRequestsContent({ userId }: { userId: string }) {
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
 
   const load = async () => {
-    const { data } = await createClient()
-      .from('license_view_requests')
-      .select('*, asset_licenses(name, asset_id, assets(asset_no, name))')
-      .order('created_at', { ascending: false })
-    setRequests((data ?? []) as Request[])
+    const data = await getLicenseRequests()
+    setRequests(data as Request[])
 
     const ids = [...new Set((data ?? []).map((r: any) => r.requested_by))]
     if (ids.length) {

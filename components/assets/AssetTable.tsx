@@ -171,6 +171,12 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
                 {/* Status */}
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>
+                  {a.status === 'repair' && (() => {
+                    const active = (a.repair_requests ?? []).find(r => r.status !== 'resolved')
+                    return active?.case_no
+                      ? <p className="text-xs font-mono text-amber-600 dark:text-amber-400 mt-0.5">{active.case_no}</p>
+                      : null
+                  })()}
                 </td>
 
                 {/* Delete */}

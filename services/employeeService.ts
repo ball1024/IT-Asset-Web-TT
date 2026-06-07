@@ -56,6 +56,25 @@ export async function deleteEmployee(empId: string) {
   if (error) throw error
 }
 
+export async function getEmployeesSortedByEmpId() {
+  const { data, error } = await createClient()
+    .from('employees')
+    .select('*')
+    .order('emp_id')
+  if (error) throw error
+  return (data ?? []) as Employee[]
+}
+
+export async function getEmployeesByIds(ids: string[]) {
+  if (!ids.length) return []
+  const { data, error } = await createClient()
+    .from('employees')
+    .select('emp_id, full_name_th')
+    .in('emp_id', ids)
+  if (error) throw error
+  return (data ?? []) as Pick<Employee, 'emp_id' | 'full_name_th'>[]
+}
+
 export async function getEmployeeEmails(): Promise<Record<string, { full_name_th: string; position?: string }>> {
   const { data } = await createClient()
     .from('employees')

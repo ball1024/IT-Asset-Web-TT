@@ -132,6 +132,9 @@ export default function ActivityLog({ logs, userNames, onShowDetail }: { logs: A
                     </div>
                   )
                 })()}
+                {log.case_no && (
+                  <span className="text-xs font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded mt-0.5 inline-block">{log.case_no}</span>
+                )}
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1.5">
                   <span>{new Date(log.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} · {new Date(log.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
                   {log.performed_by && (

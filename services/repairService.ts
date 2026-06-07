@@ -5,7 +5,7 @@ import type { RepairRequest, RepairResolution } from '@/lib/supabase'
 export async function getRepairRequests(): Promise<RepairRequest[]> {
   const { data, error } = await createClient()
     .from('repair_requests')
-    .select('*, assets!repair_requests_asset_id_fkey(id,asset_no,name,category)')
+    .select('*, case_no, assets!repair_requests_asset_id_fkey(id,asset_no,name,category)')
     .order('reported_at', { ascending: false })
   if (error) console.error('getRepairRequests error:', error.code, error.message)
   return (data ?? []) as RepairRequest[]
@@ -14,7 +14,7 @@ export async function getRepairRequests(): Promise<RepairRequest[]> {
 export async function getRepairsByAsset(assetId: string): Promise<RepairRequest[]> {
   const { data } = await createClient()
     .from('repair_requests')
-    .select('*')
+    .select('*, case_no')
     .eq('asset_id', assetId)
     .order('reported_at', { ascending: false })
   return (data ?? []) as RepairRequest[]
@@ -105,6 +105,46 @@ export async function assignSpare(payload: {
   })
 }
 
+export async function confirmNewAssetReceived(payload: {
+  repairId: string
+  newAssetId: string
+  empId?: string | null
+  spareAssetId?: string
+  notes?: string
+  performed_by?: string
+}): Promise<void> {
+  const supabase = createClient()
+  const now = new Date().toISOString()
+
+  await supabase.from('repair_requests').update({
+    status: 'resolved',
+    resolution: 'replaced_new',
+    resolved_by: payload.performed_by,
+    resolved_at: now,
+    notes: payload.notes ?? null,
+  }).eq('id', payload.repairId)
+
+  // มอบหมายเครื่องใหม่ให้ผู้ใช้เดิม
+  await supabase.from('assets').update({
+    status: payload.empId ? 'issued' : 'available',
+    emp_id: payload.empId ?? null,
+    updated_at: now,
+  }).eq('id', payload.newAssetId)
+
+  await insertAssetLog({
+    asset_id: payload.newAssetId,
+    action: 'assigned',
+    detail: `เครื่องทดแทน (repair #${payload.repairId.slice(0, 8)})${payload.empId ? ` → ${payload.empId}` : ''}`,
+    performed_by: payload.performed_by,
+    repair_request_id: payload.repairId,
+  })
+
+  if (payload.spareAssetId) {
+    await supabase.from('assets').update({ status: 'spare', emp_id: null, updated_at: now }).eq('id', payload.spareAssetId)
+    await insertAssetLog({ asset_id: payload.spareAssetId, action: 'spare_returned', detail: 'คืน spare — ได้รับเครื่องใหม่แล้ว', performed_by: payload.performed_by, repair_request_id: payload.repairId })
+  }
+}
+
 export async function resolveRepair(payload: {
   repairId: string
   assetId: string
@@ -141,9 +181,9 @@ export async function resolveRepair(payload: {
 
   } else if (payload.resolution === 'replaced_spare') {
     // ซ่อมไม่ได้ — ผู้ใช้ใช้ spare ต่อถาวร
-    // เครื่องเดิม writeoff เคลียร์ผู้ถือ
-    await supabase.from('assets').update({ status: 'writeoff', emp_id: null, updated_at: now }).eq('id', payload.assetId)
-    await insertAssetLog({ asset_id: payload.assetId, action: 'writeoff', detail: 'ซ่อมไม่ได้ — ตัดจำหน่าย ผู้ใช้ใช้ spare แทน', performed_by: payload.performed_by, repair_request_id: payload.repairId })
+    // เครื่องเดิม → damaged รอ admin ยืนยัน writeoff
+    await supabase.from('assets').update({ status: 'damaged', emp_id: null, updated_at: now }).eq('id', payload.assetId)
+    await insertAssetLog({ asset_id: payload.assetId, action: 'damaged', detail: 'ซ่อมไม่ได้ — รอตัดจำหน่าย (ผู้ใช้ใช้ spare แทน)', performed_by: payload.performed_by, repair_request_id: payload.repairId })
 
     if (payload.spareAssetId) {
       // spare → issued ถาวร ให้ emp เดิม (spare กลายเป็นเครื่องประจำแล้ว)
@@ -152,9 +192,9 @@ export async function resolveRepair(payload: {
     }
 
   } else if (payload.resolution === 'replaced_new') {
-    // ซื้อใหม่ ได้รับแล้ว — เครื่องเดิม writeoff, spare คืน stock
-    await supabase.from('assets').update({ status: 'writeoff', emp_id: null, updated_at: now }).eq('id', payload.assetId)
-    await insertAssetLog({ asset_id: payload.assetId, action: 'writeoff', detail: 'ซ่อมไม่ได้ — ตัดจำหน่าย ได้รับเครื่องใหม่แล้ว', performed_by: payload.performed_by, repair_request_id: payload.repairId })
+    // ซื้อใหม่ ได้รับแล้ว — เครื่องเดิม → damaged รอ admin ยืนยัน writeoff
+    await supabase.from('assets').update({ status: 'damaged', emp_id: null, updated_at: now }).eq('id', payload.assetId)
+    await insertAssetLog({ asset_id: payload.assetId, action: 'damaged', detail: 'ซ่อมไม่ได้ — รอตัดจำหน่าย (ได้รับเครื่องใหม่แล้ว)', performed_by: payload.performed_by, repair_request_id: payload.repairId })
 
     if (payload.spareAssetId) {
       await supabase.from('assets').update({ status: 'spare', emp_id: null, updated_at: now }).eq('id', payload.spareAssetId)
@@ -170,8 +210,8 @@ export async function resolveRepair(payload: {
       notes: payload.notes,
     }).eq('id', payload.repairId)
 
-    await supabase.from('assets').update({ status: 'writeoff', emp_id: null, updated_at: now }).eq('id', payload.assetId)
-    await insertAssetLog({ asset_id: payload.assetId, action: 'writeoff', detail: 'ซ่อมไม่ได้ — รอรับเครื่องใหม่', performed_by: payload.performed_by, repair_request_id: payload.repairId })
+    await supabase.from('assets').update({ status: 'damaged', emp_id: null, updated_at: now }).eq('id', payload.assetId)
+    await insertAssetLog({ asset_id: payload.assetId, action: 'damaged', detail: 'ซ่อมไม่ได้ — รอตัดจำหน่าย (รอเครื่องใหม่)', performed_by: payload.performed_by, repair_request_id: payload.repairId })
 
     if (payload.spareAssetId) {
       // ถ้ามี spare ให้ยังถือต่อไปก่อน (ไม่คืน)

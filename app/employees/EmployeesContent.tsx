@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
 import type { Employee } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
+import { getEmployeesSortedByEmpId, deleteEmployee } from '@/services/employeeService'
 import { insertEmployeeLog } from '@/lib/logging'
 import { searchEmployees } from '@/lib/fuzzySearch'
 import EmployeeTable from '@/components/employees/EmployeeTable'
@@ -25,8 +26,7 @@ export default function EmployeesContent() {
   const [showImport, setShowImport] = useState(false)
 
   const load = useCallback(() => {
-    createClient().from('employees').select('*').order('emp_id')
-      .then(({ data }) => { setEmployees(data ?? []); setLoading(false) })
+    getEmployeesSortedByEmpId().then(data => { setEmployees(data); setLoading(false) })
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -57,13 +57,11 @@ export default function EmployeesContent() {
   const canDelete = canDeleteEmployee(role)
 
   const del = async (emp: Employee) => {
-    const supabase = createClient()
-    const uid = (await supabase.auth.getUser()).data.user?.id
     await insertEmployeeLog({
       emp_id: emp.emp_id, action: 'deleted',
-      detail: `${emp.full_name_th} (${emp.emp_id})`, performed_by: uid,
+      detail: `${emp.full_name_th} (${emp.emp_id})`, performed_by: userId,
     })
-    await supabase.from('employees').delete().eq('emp_id', emp.emp_id)
+    await deleteEmployee(emp.emp_id)
     setConfirmEmp(null)
     load()
   }

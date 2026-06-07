@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { RepairRequest } from '@/lib/supabase'
 import { getRepairRequests } from '@/services/repairService'
+import { getEmployeesByIds } from '@/services/employeeService'
 import { useRole } from '@/hooks/useRole'
 import { canRepair, canResolveRepair } from '@/lib/permissions'
 import { Wrench, Plus, Clock, ChevronDown, ChevronRight } from 'lucide-react'
@@ -44,8 +45,8 @@ export default function RepairsContent() {
     // โหลดชื่อพนักงาน
     const empIds = [...new Set(data.map(r => r.reported_by).filter(Boolean))] as string[]
     if (empIds.length) {
-      const { data: emps } = await createClient().from('employees').select('emp_id,full_name_th').in('emp_id', empIds)
-      setEmpNames(Object.fromEntries((emps ?? []).map(e => [e.emp_id, e.full_name_th])))
+      const emps = await getEmployeesByIds(empIds)
+      setEmpNames(Object.fromEntries(emps.map(e => [e.emp_id, e.full_name_th])))
     }
     setLoading(false)
   }, [])
@@ -188,8 +189,8 @@ export default function RepairsContent() {
                     {group.rows.map((r, i) => (
                       <div key={r.id} className={`px-4 py-3 ${r.status !== 'resolved' ? 'bg-amber-50/40 dark:bg-amber-900/5' : ''}`}>
                         <div className="flex items-start gap-3">
-                          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5 w-5 shrink-0">
-                            #{group.rows.length - i}
+                          <span className="text-xs font-mono font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0 w-20">
+                            {r.case_no ?? `#${group.rows.length - i}`}
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">

@@ -5,7 +5,7 @@ import logoSrc from '@/public/TT_LOGO_0.png'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, PlusCircle, ClipboardList,
-  Users, ShieldCheck, Settings, LogOut, X, KeyRound, Store, Wrench,
+  Users, ShieldCheck, Settings, LogOut, X, KeyRound, Store, Wrench, Trash2,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
 import { canEdit, canDelete, canViewMembers, canManageEmployees, canViewMembers as _cv, canAccessSettings, canRepair } from '@/lib/permissions'
@@ -73,6 +73,7 @@ export default function Sidebar({ open, onClose }: Props) {
             <>
               <p className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-4 mb-1">Report</p>
               <Link href="/logs" onClick={onClose} className={active('/logs')}><ClipboardList size={18} /> Activity Log</Link>
+              <Link href="/writeoff" onClick={onClose} className={active('/writeoff')}><Trash2 size={18} /> ของชำรุด / Write Off</Link>
             </>
           )}
           {(canManageEmployees(role) || canViewMembers(role) || canAccessSettings(role)) && (

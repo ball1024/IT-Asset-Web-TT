@@ -90,7 +90,8 @@ export default function RepairDetailModal({ repair, repairNo, onClose }: Props) 
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-              <Wrench size={16} /> รายละเอียดการซ่อม #{repairNo}
+              <Wrench size={16} />
+              <span className="font-mono text-indigo-600 dark:text-indigo-400">{repair.case_no ?? `#${repairNo}`}</span>
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {assetInfo?.asset_no} — {assetInfo?.name}

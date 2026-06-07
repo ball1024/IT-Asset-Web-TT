@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useRole } from '@/hooks/useRole'
+import { getSetting, upsertSetting } from '@/services/settingService'
 import { canAccessSettings } from '@/lib/permissions'
 
 export default function SettingsContent() {
@@ -18,9 +18,8 @@ export default function SettingsContent() {
       setLoading(false)
     } else {
       // fallback อ่านจาก Supabase ครั้งแรก
-      createClient().from('settings').select('value').eq('key', 'logging_enabled').single()
-        .then(({ data }) => {
-          const val = data?.value !== 'false'
+      getSetting('logging_enabled').then(value => {
+          const val = value !== 'false'
           setLoggingEnabled(val)
           localStorage.setItem('logging_enabled', String(val))
           setLoading(false)
@@ -33,7 +32,7 @@ export default function SettingsContent() {
     const next = !loggingEnabled
     localStorage.setItem('logging_enabled', String(next))
     setLoggingEnabled(next)
-    await createClient().from('settings').upsert({ key: 'logging_enabled', value: String(next) })
+    await upsertSetting('logging_enabled', String(next))
     setSaving(false)
   }
 

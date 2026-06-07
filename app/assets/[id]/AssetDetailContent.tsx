@@ -2,6 +2,9 @@
 import { use, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Asset, AssetLog, Employee, Vendor, ConditionCheck } from '@/lib/supabase'
+import { getAssetById, deleteAsset, updateAsset, updateAssetImages } from '@/services/assetService'
+import { getAssetLogs } from '@/services/logService'
+import { getLastHandoverByAsset } from '@/services/conditionCheckService'
 import { CONDITION_ITEM_LABELS, ACCESSORY_LABELS } from '@/lib/supabase'
 import { ACTION_LABELS } from '@/lib/assetConstants'
 import { insertAssetLog } from '@/lib/logging'
@@ -111,15 +114,14 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
   const loadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = async () => {
-    const supabase = createClient()
-    const [{ data: a }, { data: l }, { data: cc }] = await Promise.all([
-      supabase.from('assets').select('*, employees(*), vendors(*)').eq('id', id).single(),
-      supabase.from('asset_logs').select('*').eq('asset_id', id).order('created_at', { ascending: false }),
-      supabase.from('asset_condition_checks').select('*').eq('asset_id', id).eq('check_type', 'handover').order('created_at', { ascending: false }).limit(1),
+    const [a, l, cc] = await Promise.all([
+      getAssetById(id),
+      getAssetLogs(id),
+      getLastHandoverByAsset(id),
     ])
-    setAsset(a as Asset)
-    setLogs(l ?? [])
-    setLastHandover((cc?.[0] ?? null) as ConditionCheck | null)
+    setAsset(a)
+    setLogs(l)
+    setLastHandover(cc)
     setLoading(false)
   }
 
@@ -151,9 +153,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
       title: 'ยืนยันการลบ Asset',
       message: `${asset?.asset_no ? asset.asset_no + ' · ' : ''}${asset?.name}`,
       onConfirm: async () => {
-        const supabase = createClient()
         await insertAssetLog({ asset_id: id, action: 'deleted', performed_by: userId, detail: `${asset?.name}|${asset?.asset_no ?? ''}` })
-        await supabase.from('assets').delete().eq('id', id)
+        await deleteAsset(id)
         router.push('/assets')
       },
     })
@@ -163,7 +164,6 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
     if (!asset) return
     const { compressImage } = await import('@/lib/compressImage')
     const { assetImageKey, getNextImageIndex } = await import('@/lib/r2')
-    const supabase = createClient()
     const newKeys = [...asset.images]
     for (const file of Array.from(files)) {
       if (newKeys.length >= 5) break
@@ -175,7 +175,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
       newKeys.push(key)
       await insertAssetLog({ asset_id: asset.id, action: 'image_added', detail: key, performed_by: userId })
     }
-    await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
+    await updateAssetImages(asset.id, newKeys)
     await load()
   }
 
@@ -421,8 +421,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 {CAT_ICON[asset.category] ?? '📦'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-mono font-semibold text-indigo-500 dark:text-indigo-400">{asset.asset_no || '—'}</p>
-                <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 truncate">{asset.name}</h2>
+                <h2 className="text-base font-bold font-mono tracking-wide text-indigo-600 dark:text-indigo-400 leading-tight">{asset.asset_no || '—'}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{asset.name}</p>
                 <div className="flex gap-1.5 mt-1 flex-wrap">
                   <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">{asset.category}</span>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.cls}`}>{status.label}</span>
@@ -444,8 +444,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 {CAT_ICON[asset.category] ?? '📦'}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-mono font-semibold text-indigo-500 dark:text-indigo-400">{asset.asset_no || '—'}</p>
-                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 truncate">{asset.name}</h2>
+                <h2 className="text-lg font-bold font-mono tracking-wide text-indigo-600 dark:text-indigo-400 leading-tight">{asset.asset_no || '—'}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{asset.name}</p>
                 <div className="flex gap-1.5 mt-0.5 flex-wrap">
                   <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">{asset.category}</span>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.cls}`}>{status.label}</span>
@@ -645,10 +645,9 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                             title: 'ลบรูปภาพ',
                             message: 'ต้องการลบรูปนี้ออกจาก Asset ใช่ไหม?',
                             onConfirm: async () => {
-                              const supabase = createClient()
                               await fetch('/api/r2/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })
                               const newKeys = asset.images.filter(k => k !== key)
-                              await supabase.from('assets').update({ images: newKeys }).eq('id', asset.id)
+                              await updateAssetImages(asset.id, newKeys)
                               await insertAssetLog({ asset_id: asset.id, action: 'image_removed', detail: key, performed_by: userId })
                               await load()
                             },
@@ -762,9 +761,8 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                         title: 'เอาผู้ใช้งานออก',
                         message: `ถอด ${employee.full_name_th} ออกจาก Asset นี้ใช่ไหม?`,
                         onConfirm: async () => {
-                          const supabase = createClient()
                           const oldEmpId = employee.emp_id
-                          await supabase.from('assets').update({ emp_id: null, status: 'returned', updated_at: new Date().toISOString() }).eq('id', id)
+                          await updateAsset(id, { emp_id: null, status: 'returned' })
                           await insertAssetLog({ asset_id: id, action: 'unassigned', performed_by: userId, detail: `${employee.emp_id} ${employee.full_name_th}` })
                           setConditionCheck({ type: 'return', empId: oldEmpId })
                         },

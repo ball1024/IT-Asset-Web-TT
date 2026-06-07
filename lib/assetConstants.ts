@@ -17,5 +17,6 @@ export const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   license_added:    { label: 'เพิ่มโปรแกรม',               color: 'bg-emerald-500' },
   license_updated:  { label: 'แก้ไขโปรแกรม',              color: 'bg-blue-400' },
   license_removed:  { label: 'ลบโปรแกรม',                 color: 'bg-red-400' },
+  damaged:          { label: 'ชำรุด — รอตัดจำหน่าย',      color: 'bg-orange-500' },
   writeoff:         { label: 'ตัดจำหน่าย',                color: 'bg-red-700' },
 }

@@ -110,6 +110,18 @@ export async function updateConditionCheck(
   })
 }
 
+export async function getLastHandoverByAsset(assetId: string): Promise<ConditionCheck | null> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('asset_condition_checks')
+    .select('*')
+    .eq('asset_id', assetId)
+    .eq('check_type', 'handover')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  return ((data?.[0] ?? null) as ConditionCheck | null)
+}
+
 export async function getConditionChecksByAsset(assetId: string): Promise<ConditionCheck[]> {
   const supabase = createClient()
   const { data } = await supabase
