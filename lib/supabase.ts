@@ -52,6 +52,18 @@ export interface Asset {
   created_by?: string
   created_at?: string
   updated_at?: string
+  // Google Sheets sync fields
+  account_category?: string   // IT / FA
+  stored_at?: string          // เก็บไว้ที่
+  cpu?: string
+  ram?: string
+  storage_spec?: string       // ความจุ storage
+  mac_ethernet?: string
+  mac_wifi?: string
+  branch?: string
+  quantity?: number
+  repair_count?: number
+  sheet_row?: number          // row index ใน Google Sheet
   employees?: Employee
   vendors?: Vendor
   repair_requests?: Pick<RepairRequest, 'case_no' | 'status'>[]

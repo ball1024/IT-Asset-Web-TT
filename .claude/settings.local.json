@@ -16,7 +16,8 @@
       "Bash(Select-String \"zxing\")",
       "Bash(git checkout *)",
       "Bash(npm run *)",
-      "PowerShell(\\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\app\\\\assets\\\\[id]\\\\AssetDetailContent.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\RepairSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\LicenseSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\ActivityLog.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\GalleryLightbox.tsx\"\\).Count)"
+      "PowerShell(\\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\app\\\\assets\\\\[id]\\\\AssetDetailContent.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\RepairSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\LicenseSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\ActivityLog.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\GalleryLightbox.tsx\"\\).Count)",
+      "Bash(npm install *)"
     ]
   }
 }

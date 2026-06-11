@@ -36,26 +36,43 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
   const cameraRef = useRef<HTMLInputElement>(null)
 
   const [form, setForm] = useState({
-    asset_no: initial?.asset_no ?? '',
-    name: initial?.name ?? '',
-    category: initial?.category ?? CATEGORIES[0],
-    brand: initial?.brand ?? '',
-    model: initial?.model ?? '',
-    serial_no: initial?.serial_no ?? '',
-    status: initial?.status ?? 'available',
-    location: initial?.location ?? '',
-    purchase_date: initial?.purchase_date ?? '',
-    received_date: initial?.received_date ?? '',
+    asset_no:       initial?.asset_no ?? '',
+    name:           initial?.name ?? '',
+    category:       initial?.category ?? CATEGORIES[0],
+    brand:          initial?.brand ?? '',
+    model:          initial?.model ?? '',
+    serial_no:      initial?.serial_no ?? '',
+    status:         initial?.status ?? 'available',
+    location:       initial?.location ?? '',
+    purchase_date:  initial?.purchase_date ?? '',
+    received_date:  initial?.received_date ?? '',
     original_price: initial?.original_price?.toString() ?? '',
-    vendor_id: initial?.vendor_id ?? '',
-    apple_id: initial?.apple_id ?? '',
-    notes: initial?.notes ?? '',
-    emp_id: initial?.emp_id ?? '',
-    department: (initial as any)?.department ?? '',
+    vendor_id:      initial?.vendor_id ?? '',
+    apple_id:       initial?.apple_id ?? '',
+    notes:          initial?.notes ?? '',
+    emp_id:         initial?.emp_id ?? '',
+    department:     (initial as any)?.department ?? '',
+    // Spec fields (optional)
+    account_category: (initial as any)?.account_category ?? 'IT',
+    stored_at:      (initial as any)?.stored_at ?? '',
+    cpu:            (initial as any)?.cpu ?? '',
+    ram:            (initial as any)?.ram ?? '',
+    storage_spec:   (initial as any)?.storage_spec ?? '',
+    mac_ethernet:   (initial as any)?.mac_ethernet ?? '',
+    mac_wifi:       (initial as any)?.mac_wifi ?? '',
+    branch:         (initial as any)?.branch ?? '',
+    quantity:       (initial as any)?.quantity?.toString() ?? '1',
   })
 
   const APPLE_CATEGORIES = ['MacBook', 'iMac', 'iOS', 'iPad']
   const isAppleDevice = APPLE_CATEGORIES.includes(form.category)
+
+  // toggle section สเปค
+  const hasSpecData = !!(
+    (initial as any)?.cpu || (initial as any)?.ram ||
+    (initial as any)?.storage_spec || (initial as any)?.mac_ethernet || (initial as any)?.mac_wifi
+  )
+  const [showSpec, setShowSpec] = useState(hasSpecData)
 
   const [deptFromEmp, setDeptFromEmp] = useState(true)
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -200,13 +217,23 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
     const supabase = createClient()
     const payload = {
       ...form,
-      emp_id: form.emp_id || null,
-      purchase_date: form.purchase_date || null,
-      received_date: form.received_date || null,
+      emp_id:         form.emp_id || null,
+      purchase_date:  form.purchase_date || null,
+      received_date:  form.received_date || null,
       original_price: form.original_price ? parseFloat(form.original_price) : null,
-      vendor_id: form.vendor_id || null,
-      apple_id: isAppleDevice ? (form.apple_id || null) : null,
-      department: form.department || null,
+      vendor_id:      form.vendor_id || null,
+      apple_id:       isAppleDevice ? (form.apple_id || null) : null,
+      department:     form.department || null,
+      // spec fields
+      account_category: form.account_category || 'IT',
+      stored_at:      form.stored_at || null,
+      cpu:            form.cpu || null,
+      ram:            form.ram || null,
+      storage_spec:   form.storage_spec || null,
+      mac_ethernet:   form.mac_ethernet || null,
+      mac_wifi:       form.mac_wifi || null,
+      branch:         form.branch || null,
+      quantity:       form.quantity ? parseInt(form.quantity) : 1,
     }
 
     if (isEdit) {
@@ -249,6 +276,12 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
       const detail = changedLines.length ? changedLines.join('\n') : undefined
       await supabase.from('assets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', initial!.id!)
       await insertAssetLog({ asset_id: initial!.id!, action: 'updated', performed_by: userId, detail })
+      // sync to Google Sheets (fire-and-forget)
+      fetch('/api/sheets-sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: initial!.id! }),
+      }).catch(() => {})
       onSave?.(initial!.id!)
     } else {
       // double-check duplicate asset_no before insert
@@ -274,6 +307,12 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
           console.error('Upload image failed:', e)
           alert('บันทึก Asset สำเร็จ แต่ upload รูปไม่ได้ — กรุณาตรวจสอบ CORS ของ R2')
         }
+        // sync to Google Sheets (fire-and-forget)
+        fetch('/api/sheets-sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetId: data.id }),
+        }).catch(() => {})
         router.push(`/assets/${data.id}`)
       }
     }
@@ -520,6 +559,72 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
           <input type="date" value={form.purchase_date} onChange={set('purchase_date')} className={inp} />
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">ใช้คำนวณ Book Valued</p>
         </div>
+
+        {/* ── ข้อมูลสเปค (optional toggle) ── */}
+        <div className={sec}>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showSpec}
+              onChange={e => setShowSpec(e.target.checked)}
+              className="w-4 h-4 accent-indigo-600"
+            />
+            <span className={secLabel + ' mb-0'}>เพิ่มข้อมูลสเปค (CPU / RAM / Storage / Mac Address)</span>
+          </label>
+        </div>
+
+        {showSpec && (
+          <>
+            {/* Account Category + Branch */}
+            <div>
+              <label className={lbl}>หมวดบัญชี</label>
+              <select value={form.account_category} onChange={set('account_category')} className={inp}>
+                <option value="IT">IT</option>
+                <option value="FA">FA</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Branch / สาขา</label>
+              <input value={form.branch} onChange={set('branch')} placeholder="เช่น HQ, สาขา 1" className={inp} />
+            </div>
+
+            {/* Stored At + Quantity */}
+            <div>
+              <label className={lbl}>เก็บไว้ที่</label>
+              <input value={form.stored_at} onChange={set('stored_at')} placeholder="เช่น ตู้ Server ชั้น 2" className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>จำนวน</label>
+              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} className={inp} />
+            </div>
+
+            {/* CPU + RAM */}
+            <div>
+              <label className={lbl}>CPU</label>
+              <input value={form.cpu} onChange={set('cpu')} placeholder="เช่น Intel Core i7-1165G7" className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>RAM</label>
+              <input value={form.ram} onChange={set('ram')} placeholder="เช่น 16GB DDR4" className={inp} />
+            </div>
+
+            {/* Storage */}
+            <div>
+              <label className={lbl}>Storage</label>
+              <input value={form.storage_spec} onChange={set('storage_spec')} placeholder="เช่น SSD 512GB" className={inp} />
+            </div>
+
+            {/* Mac Addresses */}
+            <div>
+              <label className={lbl}>Mac Address (Ethernet)</label>
+              <input value={form.mac_ethernet} onChange={set('mac_ethernet')} placeholder="xx:xx:xx:xx:xx:xx" className={inp} />
+            </div>
+            <div className="md:col-span-2">
+              <label className={lbl}>Mac Address (Wifi)</label>
+              <input value={form.mac_wifi} onChange={set('mac_wifi')} placeholder="xx:xx:xx:xx:xx:xx" className={inp} />
+            </div>
+          </>
+        )}
 
         {/* ── หมายเหตุ ── */}
         <div className={sec}>

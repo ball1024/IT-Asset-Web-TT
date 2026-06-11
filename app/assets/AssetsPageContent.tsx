@@ -11,7 +11,7 @@ import ImportExcelModal from '@/components/assets/ImportExcelModal'
 import BarcodeScannerModal from '@/components/assets/BarcodeScannerModal'
 import { useRole } from '@/hooks/useRole'
 import { canImportExport, canEdit } from '@/lib/permissions'
-import { Search, Download, Upload, ScanLine, X, Plus } from 'lucide-react'
+import { Search, Download, Upload, ScanLine, X, Plus, RefreshCw } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['ทั้งหมด', 'Notebook', 'MacBook', 'PC Desktop', 'iMac', 'Android', 'iOS', 'iPad', 'Monitor', 'Printer', 'TV', 'Network', 'Other']
@@ -40,6 +40,8 @@ export default function AssetsPageContent() {
   const [vendorFilter, setVendorFilter] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   // vendor filter จาก query param (จาก Vendor page)
   const vendorIdParam   = searchParams.get('vendor_id') ?? ''
@@ -103,6 +105,26 @@ export default function AssetsPageContent() {
     XLSX.writeFile(wb, `assets_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  const syncFromSheets = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const res = await fetch(`/api/sheets-sync?secret=${process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_SECRET ?? ''}&userId=${userId ?? ''}`)
+      const json = await res.json()
+      if (json.ok) {
+        setSyncMsg(`✅ Sync สำเร็จ: เพิ่ม ${json.created} อัพเดต ${json.updated} ลบ ${json.deleted} ข้าม ${json.skipped}`)
+        load()
+      } else {
+        setSyncMsg(`❌ ${json.error ?? 'Sync ล้มเหลว'}`)
+      }
+    } catch {
+      setSyncMsg('❌ เชื่อมต่อไม่ได้')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 5000)
+    }
+  }
+
   const sel = 'border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
 
   return (
@@ -116,7 +138,21 @@ export default function AssetsPageContent() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">All Assets</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {syncMsg && (
+              <span className="text-xs text-gray-600 dark:text-gray-300">{syncMsg}</span>
+            )}
+            {(role === 'admin' || role === 'master_admin') && (
+              <button
+                onClick={syncFromSheets}
+                disabled={syncing}
+                title="Sync จาก Google Sheets"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-green-500 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'กำลัง Sync...' : 'Sync Sheets'}
+              </button>
+            )}
             {canEdit(role) && (
               <button onClick={() => router.push('/assets/new')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
@@ -172,7 +208,7 @@ export default function AssetsPageContent() {
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
             {loading ? 'Loading...' : `${filtered.length} รายการ`}
           </div>
-          <AssetTable assets={filtered} role={role} userId={userId ?? ''} onDelete={id => setAssets(a => a.filter(x => x.id !== id))} />
+          <AssetTable assets={filtered} role={role} userId={userId ?? ''} onDelete={() => load()} />
         </div>
       </div>
     </>

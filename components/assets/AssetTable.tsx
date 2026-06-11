@@ -31,7 +31,7 @@ interface Props {
   assets: Asset[]
   role: Role | null
   userId: string
-  onDelete: (id: string) => void
+  onDelete: () => void
 }
 
 const PAGE_SIZE = 15
@@ -81,11 +81,29 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
     if (!confirmAsset) return
     setDeleting(confirmAsset.id)
     setConfirmAsset(null)
-    const supabase = createClient()
-    await insertAssetLog({ asset_id: confirmAsset.id, action: 'deleted', performed_by: userId, detail: `${confirmAsset.name}|${confirmAsset.asset_no ?? ''}` })
-    await supabase.from('assets').delete().eq('id', confirmAsset.id)
-    setDeleting(null)
-    onDelete(confirmAsset.id)
+    try {
+      const supabase = createClient()
+      // ตรวจสอบว่ามี repair ที่ยัง active อยู่ไหม
+      const { data: activeRepairs, error: repairErr } = await supabase
+        .from('repair_requests')
+        .select('case_no')
+        .eq('asset_id', confirmAsset.id)
+        .in('status', ['pending', 'in_progress'])
+      if (repairErr) throw new Error(repairErr.message)
+      if (activeRepairs && activeRepairs.length > 0) {
+        const cases = activeRepairs.map(r => r.case_no ?? '').filter(Boolean).join(', ')
+        alert(`ไม่สามารถลบได้ เนื่องจากมีการซ่อมที่ยังค้างอยู่${cases ? ` (${cases})` : ''}\nกรุณาปิดงานซ่อมก่อนลบ Asset`)
+        return
+      }
+      await insertAssetLog({ asset_id: confirmAsset.id, action: 'deleted', performed_by: userId, detail: `${confirmAsset.name}|${confirmAsset.asset_no ?? ''}` })
+      const { error } = await supabase.from('assets').delete().eq('id', confirmAsset.id)
+      if (error) throw new Error(error.message)
+      onDelete()
+    } catch (err) {
+      alert(`ลบไม่สำเร็จ: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setDeleting(null)
+    }
   }
 
   return (
