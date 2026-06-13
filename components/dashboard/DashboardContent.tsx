@@ -311,7 +311,10 @@ export default function DashboardContent() {
                     <td className="px-4 py-2.5">
                       {emp?.full_name_th
                         ? <div>
-                            <p className="text-gray-700 dark:text-gray-200 text-xs font-medium">{emp.full_name_th}</p>
+                            <p className="text-gray-700 dark:text-gray-200 text-xs font-medium">
+                              {emp.full_name_th}
+                              {(emp as any).nickname && <span className="ml-1 text-gray-400 dark:text-gray-500 font-normal">({(emp as any).nickname})</span>}
+                            </p>
                             <p className="text-gray-400 dark:text-gray-500 text-xs">{a.emp_id}</p>
                           </div>
                         : <span className="text-gray-400 dark:text-gray-500 text-xs">—</span>

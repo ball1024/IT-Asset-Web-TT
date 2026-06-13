@@ -95,6 +95,7 @@ export default function TransferModal({ asset, onDone, onClose, userId, mode = '
               <div className={`w-2 h-2 rounded-full shrink-0 ${selected?.emp_id === emp.emp_id ? 'bg-indigo-500' : 'bg-gray-200 dark:bg-gray-600'}`} />
               <div>
                 <span className="font-medium text-gray-800 dark:text-gray-100">{emp.full_name_th}</span>
+                {(emp as any).nickname && <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs">({(emp as any).nickname})</span>}
                 <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">{emp.emp_id}</span>
                 {emp.department && <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs">· {emp.department}</span>}
               </div>

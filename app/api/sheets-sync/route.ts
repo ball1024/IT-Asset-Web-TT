@@ -102,11 +102,21 @@ export async function GET(req: NextRequest) {
 
     let created = 0, updated = 0, skipped = 0
     const errors: string[] = []
+    const skippedRows: { rowIndex: number; reason: string; preview: string }[] = []
     const logEntries: object[] = []
 
-    for (const row of rows) {
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri]
       const partial = sheetRowToAsset(row)
-      if (!partial.asset_no) { skipped++; continue }
+      if (!partial.asset_no) {
+        skipped++
+        skippedRows.push({
+          rowIndex: ri + 2, // +2 เพราะ header=row1, data เริ่ม row2
+          reason: 'ไม่มี Asset No.',
+          preview: (row[COL.NAME] ?? row[COL.SERIAL_NO] ?? '').toString().trim().slice(0, 40) || '(ว่าง)',
+        })
+        continue
+      }
 
       // ถ้า emp_id ไม่มีใน employees ให้ใส่ null แทน (ป้องกัน FK violation)
       if (partial.emp_id) {
@@ -153,7 +163,7 @@ export async function GET(req: NextRequest) {
       await supabase.from('asset_logs').insert(logEntries)
     }
 
-    return NextResponse.json({ ok: true, created, updated, deleted, skipped, errors })
+    return NextResponse.json({ ok: true, created, updated, deleted, skipped, skippedRows, errors })
   } catch (err: any) {
     console.error('[sheets-sync GET]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -4,9 +4,15 @@ import { createClient } from '@/lib/supabase'
 import type { Asset, Employee, Vendor } from '@/lib/supabase'
 import BarcodeScannerModal from './BarcodeScannerModal'
 import { compressImage } from '@/lib/compressImage'
-import { assetImageKey, getNextImageIndex } from '@/lib/r2'
+import { assetImageKey, getNextImageIndex, r2PublicUrl } from '@/lib/r2'
 import { insertAssetLog } from '@/lib/logging'
-import { ScanLine, Camera, Upload, X, Loader2, ChevronDown } from 'lucide-react'
+import { ScanLine, Camera, Upload, X, Loader2, ChevronDown, Wand2 } from 'lucide-react'
+
+const CATEGORY_TO_CODE: Record<string, string> = {
+  'notebook': '01', 'macbook': '02', 'pc desktop': '03', 'imac': '04',
+  'android': '05', 'ios': '06', 'ipad': '07', 'monitor': '08',
+  'printer': '09', 'tv': '10', 'network': '11', 'other': '12',
+}
 import { useRouter } from 'next/navigation'
 import Fuse from 'fuse.js'
 
@@ -92,10 +98,41 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
   const [scanner, setScanner] = useState<'asset_no' | 'serial_no' | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // รูปที่เลือกไว้ก่อน save (เฉพาะ Add mode)
+  // auto-generate asset_no
+  const now = new Date()
+  const defaultThaiYear = ((now.getFullYear() + 543) % 100).toString().padStart(2, '0')
+  const defaultMonth    = (now.getMonth() + 1).toString().padStart(2, '0')
+  const [autoGen, setAutoGen]     = useState(!isEdit)
+  const [genYear, setGenYear]     = useState(defaultThaiYear)
+  const [genMonth, setGenMonth]   = useState(defaultMonth)
+  const [genLoading, setGenLoading] = useState(false)
+
+  const generateAssetNo = async (category: string, year: string, month: string) => {
+    const catCode = CATEGORY_TO_CODE[category.toLowerCase()]
+    if (!catCode || !year || !month) return
+    setGenLoading(true)
+    try {
+      const res  = await fetch(`/api/assets/next-asset-no?catCode=${catCode}&year=${year}&month=${month}`)
+      const json = await res.json()
+      if (json.assetNo) {
+        setForm(f => ({ ...f, asset_no: json.assetNo }))
+        setAssetNoError('')
+      }
+    } finally {
+      setGenLoading(false)
+    }
+  }
+
+  // รูปที่เลือกไว้ก่อน save
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
+
+  // Edit mode: รูปปัจจุบันที่อยู่ใน R2
+  const [existingImages, setExistingImages] = useState<string[]>(
+    (initial as any)?.images ?? []
+  )
+  const MAX_IMAGES = 10
 
   // โหลด employees ทั้งหมดครั้งเดียว
   useEffect(() => {
@@ -154,8 +191,14 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
   }
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm(f => ({ ...f, [k]: e.target.value }))
-    if (k === 'asset_no') checkAssetNo(e.target.value)
+    const val = e.target.value
+    // ถ้าเปลี่ยน category แล้วเปิด autoGen ให้ล้าง asset_no พร้อมกันเลย
+    if (k === 'category' && !isEdit && autoGen) {
+      setForm(f => ({ ...f, category: val, asset_no: '' }))
+    } else {
+      setForm(f => ({ ...f, [k]: val }))
+    }
+    if (k === 'asset_no') checkAssetNo(val)
   }
 
   const onScanResult = useCallback((value: string, target: 'asset_no' | 'serial_no') => {
@@ -163,16 +206,12 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
     if (target === 'asset_no') checkAssetNo(value)
   }, [])
 
-  // เพิ่มรูปที่เลือกไว้ก่อน save
   const addPendingFiles = (files: FileList) => {
-    const total = pendingFiles.length + files.length
-    if (total > 5) { alert('สูงสุด 5 รูป'); return }
+    const total = existingImages.length + pendingFiles.length + files.length
+    if (total > MAX_IMAGES) { alert(`สูงสุด ${MAX_IMAGES} รูป`); return }
     const newFiles = Array.from(files)
     setPendingFiles(prev => [...prev, ...newFiles])
-    newFiles.forEach(f => {
-      const url = URL.createObjectURL(f)
-      setPreviewUrls(prev => [...prev, url])
-    })
+    newFiles.forEach(f => setPreviewUrls(prev => [...prev, URL.createObjectURL(f)]))
   }
 
   const removePending = (i: number) => {
@@ -181,33 +220,78 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
     setPreviewUrls(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  // upload รูปหลัง asset ถูกสร้าง
+  // ลบรูปเก่าออกจาก R2 + Supabase (Edit mode)
+  const removeExisting = async (key: string) => {
+    const res = await fetch('/api/r2/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    })
+    if (!res.ok) {
+      alert('ลบรูปไม่สำเร็จ กรุณาลองใหม่')
+      return
+    }
+    const updated = existingImages.filter(k => k !== key)
+    setExistingImages(updated)
+    await createClient().from('assets').update({ images: updated }).eq('id', initial!.id!)
+    await insertAssetLog({ asset_id: initial!.id!, action: 'image_removed', detail: key, performed_by: userId })
+  }
+
+  const backupToDrive = (compressed: File, key: string, assetNo: string) => {
+    const form = new FormData()
+    form.append('file', compressed, `${key.replace(/\//g, '_')}.webp`)
+    form.append('assetNo', assetNo)
+    form.append('filename', `${key.replace(/\//g, '_')}.webp`)
+    fetch('/api/drive/backup', { method: 'POST', body: form }).catch(() => {})
+  }
+
+  // upload รูปใหม่ไปที่ R2 + backup Drive
+  // Edit mode: ต่อจาก existingImages | Add mode: เริ่มใหม่
   const uploadImages = async (assetId: string, assetNo: string) => {
-    if (!pendingFiles.length) return []
+    if (!pendingFiles.length) return existingImages
     setUploadingImages(true)
-    const keys: string[] = []
     const supabase = createClient()
 
-    for (const file of pendingFiles) {
-      const compressed = await compressImage(file)
-      const idx = await getNextImageIndex(keys)
-      const key = assetImageKey(assetNo, idx)
-
-      const { url } = await fetch('/api/r2/presign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key }),
-      }).then(r => r.json())
-
-      await fetch(url, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
-      keys.push(key)
-
-      await insertAssetLog({ asset_id: assetId, action: 'image_added', detail: key, performed_by: userId })
+    // ถ้า Edit: ลบรูปที่เหลืออยู่ใน R2 ก่อน (รูปที่ user ลบไปแล้วก่อนหน้า ถูก removeExisting จัดการไปแล้ว)
+    if (isEdit && existingImages.length > 0) {
+      await Promise.allSettled(
+        existingImages.map(key =>
+          fetch('/api/r2/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key }),
+          })
+        )
+      )
     }
 
-    await supabase.from('assets').update({ images: keys }).eq('id', assetId)
-    setUploadingImages(false)
-    return keys
+    const newKeys: string[] = []
+    try {
+      for (const file of pendingFiles) {
+        const compressed = await compressImage(file)
+        const idx = await getNextImageIndex(newKeys)
+        const key = assetImageKey(assetNo, idx)
+
+        const { url } = await fetch('/api/r2/presign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        }).then(r => r.json())
+
+        await fetch(url, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
+        newKeys.push(key)
+
+        await insertAssetLog({ asset_id: assetId, action: 'image_added', detail: key, performed_by: userId })
+        backupToDrive(compressed, key, assetNo)
+      }
+
+      // R2 เก็บแค่รูปใหม่ (ล้างเก่าแล้ว)
+      await supabase.from('assets').update({ images: newKeys }).eq('id', assetId)
+      setExistingImages(newKeys)
+    } finally {
+      setUploadingImages(false)
+    }
+    return newKeys
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -276,6 +360,15 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
       const detail = changedLines.length ? changedLines.join('\n') : undefined
       await supabase.from('assets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', initial!.id!)
       await insertAssetLog({ asset_id: initial!.id!, action: 'updated', performed_by: userId, detail })
+      // upload รูปใหม่ (ถ้ามี) → ลบเก่าใน R2, backup Drive
+      if (pendingFiles.length > 0) {
+        try {
+          await uploadImages(initial!.id!, initial!.asset_no!)
+        } catch (e) {
+          console.error('Upload image failed (edit):', e)
+          alert('บันทึกข้อมูลสำเร็จ แต่ upload รูปไม่ได้ — กรุณาตรวจสอบการเชื่อมต่อ')
+        }
+      }
       // sync to Google Sheets (fire-and-forget)
       fetch('/api/sheets-sync/push', {
         method: 'POST',
@@ -332,13 +425,91 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
 
         {/* ── ข้อมูลหลัก ── */}
         {/* Asset No */}
-        <div>
-          <label className={lbl}>Asset No. *</label>
+        <div className={!isEdit ? 'md:col-span-2' : ''}>
+          <div className="flex items-center justify-between mb-1">
+            <label className={lbl + ' mb-0'}>Asset No. *</label>
+            {!isEdit && (
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoGen}
+                  onChange={e => setAutoGen(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-indigo-600"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">สร้างเลขอัตโนมัติ</span>
+              </label>
+            )}
+          </div>
+
+          {/* auto-generate controls */}
+          {!isEdit && autoGen && (
+            <div className="flex flex-wrap gap-2 mb-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">ปี พ.ศ. (2 หลัก)</span>
+                <input
+                  type="text"
+                  maxLength={2}
+                  value={genYear}
+                  onChange={e => setGenYear(e.target.value.replace(/\D/g, ''))}
+                  placeholder="69"
+                  className="w-14 border border-gray-300 dark:border-gray-500 rounded px-2 py-1 text-sm text-center bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-600 dark:text-gray-300">เดือน</span>
+                <select
+                  value={genMonth}
+                  onChange={e => setGenMonth(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-500 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50"
+                >
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = (i + 1).toString().padStart(2, '0')
+                    const names = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+                    return <option key={m} value={m}>{m} {names[i]}</option>
+                  })}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => generateAssetNo(form.category, genYear, genMonth)}
+                disabled={genLoading || genYear.length !== 2}
+                className="flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {genLoading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                Generate
+              </button>
+              {!CATEGORY_TO_CODE[form.category.toLowerCase()] && (
+                <p className="w-full text-xs text-amber-600 dark:text-amber-400">
+                  ประเภท "{form.category}" ยังไม่มี category code — กรุณากรอก Asset No. เอง
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <input value={form.asset_no} onChange={set('asset_no')} required placeholder="e.g. NTB-2024-001" className={`${inp} flex-1`} />
-            <button type="button" onClick={() => setScanner('asset_no')} className="px-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-              <ScanLine size={16} className="text-gray-500 dark:text-gray-400" />
-            </button>
+            <input
+              value={form.asset_no}
+              onChange={set('asset_no')}
+              required
+              readOnly={!isEdit && autoGen && !!form.asset_no}
+              placeholder={autoGen ? 'กด Generate เพื่อสร้างเลข' : 'e.g. IT-6906-01-0001'}
+              className={`${inp} flex-1 ${!isEdit && autoGen && form.asset_no ? 'bg-gray-50 dark:bg-gray-800 cursor-default' : ''}`}
+            />
+            {(!autoGen || isEdit) && (
+              <button type="button" onClick={() => setScanner('asset_no')} className="px-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                <ScanLine size={16} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            )}
+            {!isEdit && autoGen && form.asset_no && (
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, asset_no: '' }))}
+                title="ล้างเพื่อ generate ใหม่"
+                className="px-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <X size={16} className="text-gray-400" />
+              </button>
+            )}
           </div>
           {assetNoError && <p className="text-red-500 text-xs mt-1">{assetNoError}</p>}
         </div>
@@ -410,6 +581,31 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
         <div>
           <label className={lbl}>Location</label>
           <input value={form.location} onChange={set('location')} className={inp} />
+        </div>
+
+        {/* Branch */}
+        <div>
+          <label className={lbl}>Branch / สาขา</label>
+          <input value={form.branch} onChange={set('branch')} placeholder="เช่น HQ, สาขา 1" className={inp} />
+        </div>
+
+        {/* Stored At + Quantity */}
+        <div>
+          <label className={lbl}>เก็บไว้ที่</label>
+          <input value={form.stored_at} onChange={set('stored_at')} placeholder="เช่น ตู้ Server ชั้น 2" className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>จำนวน</label>
+          <input type="number" min="1" value={form.quantity} onChange={set('quantity')} className={inp} />
+        </div>
+
+        {/* Account Category */}
+        <div>
+          <label className={lbl}>หมวดบัญชี</label>
+          <select value={form.account_category} onChange={set('account_category')} className={inp}>
+            <option value="IT">IT</option>
+            <option value="FA">FA</option>
+          </select>
         </div>
 
         {/* ── การมอบหมาย ── */}
@@ -569,35 +765,12 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
               onChange={e => setShowSpec(e.target.checked)}
               className="w-4 h-4 accent-indigo-600"
             />
-            <span className={secLabel + ' mb-0'}>เพิ่มข้อมูลสเปค (CPU / RAM / Storage / Mac Address)</span>
+            <span className={secLabel + ' mb-0'}>ข้อมูลสเปค (CPU / RAM / Storage / Mac Address)</span>
           </label>
         </div>
 
         {showSpec && (
           <>
-            {/* Account Category + Branch */}
-            <div>
-              <label className={lbl}>หมวดบัญชี</label>
-              <select value={form.account_category} onChange={set('account_category')} className={inp}>
-                <option value="IT">IT</option>
-                <option value="FA">FA</option>
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Branch / สาขา</label>
-              <input value={form.branch} onChange={set('branch')} placeholder="เช่น HQ, สาขา 1" className={inp} />
-            </div>
-
-            {/* Stored At + Quantity */}
-            <div>
-              <label className={lbl}>เก็บไว้ที่</label>
-              <input value={form.stored_at} onChange={set('stored_at')} placeholder="เช่น ตู้ Server ชั้น 2" className={inp} />
-            </div>
-            <div>
-              <label className={lbl}>จำนวน</label>
-              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} className={inp} />
-            </div>
-
             {/* CPU + RAM */}
             <div>
               <label className={lbl}>CPU</label>
@@ -636,47 +809,73 @@ export default function AssetForm({ initial, userId, onSave, onCancel }: Props) 
           <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="หมายเหตุเพิ่มเติม..." className={inp} />
         </div>
 
-        {/* รูปภาพ — เฉพาะ Add mode */}
-        {!isEdit && (
-          <div className="md:col-span-2">
-            <label className={lbl}>รูปภาพ (สูงสุด 5 รูป)</label>
+        {/* รูปภาพ */}
+        <div className="md:col-span-2">
+          <label className={lbl}>
+            รูปภาพ (สูงสุด {MAX_IMAGES} รูป)
+            {isEdit && <span className="ml-2 text-xs text-gray-400 font-normal">· เลือกรูปใหม่จะแทนที่รูปเดิมทั้งหมดใน R2 (Drive เก็บประวัติไว้)</span>}
+          </label>
 
-            {/* Preview รูปที่เลือก */}
-            {previewUrls.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {previewUrls.map((url, i) => (
-                  <div key={i} className="relative w-20 h-20">
-                    <img src={url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-200" />
-                    <button type="button" onClick={() => removePending(i)}
-                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
-                      <X size={11} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* รูปปัจจุบันใน R2 (Edit mode) */}
+          {isEdit && existingImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {existingImages.map((key) => (
+                <div key={key} className="relative w-20 h-20 group">
+                  <img
+                    src={r2PublicUrl(key)}
+                    alt=""
+                    className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeExisting(key)}
+                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {/* ปุ่มถ่ายรูป / เลือกรูป */}
-            {pendingFiles.length < 5 && (
-              <div className="flex gap-2">
-                <button type="button" onClick={() => cameraRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <Camera size={15} /> ถ่ายรูป
-                </button>
-                <button type="button" onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <Upload size={15} /> เลือกรูป
-                </button>
-                <span className="text-xs text-gray-400 dark:text-gray-500 self-center">{pendingFiles.length}/5</span>
-              </div>
-            )}
+          {/* Preview รูปที่กำลังจะ upload */}
+          {previewUrls.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {previewUrls.map((url, i) => (
+                <div key={i} className="relative w-20 h-20">
+                  <img src={url} alt="" className="w-full h-full object-cover rounded-lg border-2 border-indigo-400" />
+                  <button type="button" onClick={() => removePending(i)}
+                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
+                    <X size={11} />
+                  </button>
+                  <span className="absolute bottom-1 left-1 text-[9px] bg-indigo-600 text-white px-1 rounded">ใหม่</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={e => e.target.files && addPendingFiles(e.target.files)} />
-            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={e => e.target.files && addPendingFiles(e.target.files)} />
-          </div>
-        )}
+          {/* ปุ่มถ่ายรูป / เลือกรูป */}
+          {existingImages.length + pendingFiles.length < MAX_IMAGES && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => cameraRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <Camera size={15} /> ถ่ายรูป
+              </button>
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <Upload size={15} /> เลือกรูป
+              </button>
+              <span className="text-xs text-gray-400 dark:text-gray-500 self-center">
+                {existingImages.length + pendingFiles.length}/{MAX_IMAGES}
+              </span>
+            </div>
+          )}
+
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => e.target.files && addPendingFiles(e.target.files)} />
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={e => e.target.files && addPendingFiles(e.target.files)} />
+        </div>
 
         {/* Buttons */}
         <div className="md:col-span-2 flex gap-3 justify-end">

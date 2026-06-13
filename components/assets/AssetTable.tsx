@@ -178,7 +178,10 @@ export default function AssetTable({ assets, role, userId, onDelete }: Props) {
                 <td className="px-4 py-3">
                   {(a.employees as any)?.full_name_th ? (
                     <div>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{(a.employees as any).full_name_th}</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {(a.employees as any).full_name_th}
+                        {(a.employees as any).nickname && <span className="ml-1 text-gray-400 dark:text-gray-500 font-normal text-xs">({(a.employees as any).nickname})</span>}
+                      </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500">{a.emp_id}</p>
                     </div>
                   ) : <span className="text-gray-400 dark:text-gray-500 text-sm">-</span>}

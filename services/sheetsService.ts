@@ -1,11 +1,14 @@
 import {
   getSheetsClient, SPREADSHEET_ID, SHEET_NAME, COL, parseAssetNo,
+  CATEGORY_CODE_MAP,
 } from '@/lib/googleSheets'
 import type { Asset } from '@/lib/supabase'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 const g = (row: string[], i: number) => (row[i] ?? '').toString().trim()
+
+const VALID_STATUSES = new Set(['available','issued','returned','damaged','repair','writeoff','hold','spare'])
 
 // map สถานะภาษาไทยจาก Sheets → ค่า status ในระบบ
 const STATUS_FROM_SHEET: Record<string, string> = {
@@ -31,7 +34,67 @@ const STATUS_FROM_SHEET: Record<string, string> = {
 function mapStatus(raw: string): string {
   if (!raw) return 'available'
   const lower = raw.toLowerCase().trim()
-  return STATUS_FROM_SHEET[lower] ?? STATUS_FROM_SHEET[raw] ?? lower
+  const mapped = STATUS_FROM_SHEET[lower] ?? STATUS_FROM_SHEET[raw]
+  if (mapped) return mapped
+  // ถ้าเป็น valid status อยู่แล้ว (เช่น sync จากเว็บ) ให้ใช้ตรงๆ
+  if (VALID_STATUSES.has(lower)) return lower
+  // fallback ปลอดภัย แทนที่จะใส่ค่า garbage ลง DB
+  return 'available'
+}
+
+// map category จาก Sheets → ชื่อที่ระบบใช้
+// รองรับทั้งภาษาไทย, code เช่น "01", และชื่อภาษาอังกฤษ
+const CATEGORY_TH: Record<string, string> = {
+  'โน้ตบุ๊ก':   'Notebook',
+  'โน้ตบุค':    'Notebook',
+  'แล็ปท็อป':   'Notebook',
+  'laptop':     'Notebook',
+  'macbook':    'MacBook',
+  'แมคบุ๊ก':    'MacBook',
+  'pc':         'PC Desktop',
+  'เดสก์ท็อป':  'PC Desktop',
+  'desktop':    'PC Desktop',
+  'imac':       'iMac',
+  'แมค':        'iMac',
+  'android':    'Android',
+  'แอนดรอยด์': 'Android',
+  'มือถือ':     'Android',
+  'ios':        'iOS',
+  'iphone':     'iOS',
+  'ไอโฟน':     'iOS',
+  'ipad':       'iPad',
+  'ไอแพด':     'iPad',
+  'จอ':         'Monitor',
+  'monitor':    'Monitor',
+  'จอมอนิเตอร์':'Monitor',
+  'printer':    'Printer',
+  'เครื่องพิมพ์': 'Printer',
+  'ปริ้นเตอร์':  'Printer',
+  'tv':         'TV',
+  'ทีวี':       'TV',
+  'network':    'Network',
+  'เน็ตเวิร์ก':  'Network',
+  'อุปกรณ์เครือข่าย': 'Network',
+  'other':      'Other',
+  'อื่นๆ':      'Other',
+}
+
+// valid category names ในระบบ (ตรงกับ CATEGORIES ใน AssetForm)
+const VALID_CATEGORIES = new Set([
+  'Notebook','MacBook','PC Desktop','iMac','Android','iOS','iPad',
+  'Monitor','Printer','TV','Network','Other',
+])
+
+function mapCategory(raw: string): string | undefined {
+  if (!raw) return undefined
+  const trimmed = raw.trim()
+  // ถ้าตรงกับ valid category แล้ว (case-insensitive)
+  const found = [...VALID_CATEGORIES].find(c => c.toLowerCase() === trimmed.toLowerCase())
+  if (found) return found
+  // ลอง map จาก category code (01-12)
+  if (CATEGORY_CODE_MAP[trimmed]) return CATEGORY_CODE_MAP[trimmed]
+  // ลอง map จากภาษาไทย/ชื่อย่อ
+  return CATEGORY_TH[trimmed.toLowerCase()] ?? undefined
 }
 
 // ── convert Sheet row → Supabase partial asset ───────────────────────────────
@@ -49,7 +112,7 @@ export function sheetRowToAsset(row: string[]): Partial<Asset> {
     location:        g(row, COL.LOCATION)         || undefined,
     received_date:   g(row, COL.RECEIVED_DATE)    || undefined,
     original_price:  rawPrice ? parseFloat(rawPrice) : undefined,
-    category:        g(row, COL.CATEGORY)         || undefined,
+    category:        mapCategory(g(row, COL.CATEGORY)),
     notes:           g(row, COL.NOTES)            || undefined,
     status:          mapStatus(g(row, COL.STATUS)) as Asset['status'],
     emp_id:          g(row, COL.EMP_ID)           || undefined,

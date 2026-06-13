@@ -71,6 +71,8 @@ export const CATEGORY_CODE_MAP: Record<string, string> = {
   '08': 'Monitor',
   '09': 'Printer',
   '10': 'TV',
+  '11': 'Network',
+  '12': 'Other',
 }
 
 export const CATEGORY_TO_CODE: Record<string, string> = Object.fromEntries(

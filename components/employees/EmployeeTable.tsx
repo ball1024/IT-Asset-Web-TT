@@ -23,7 +23,10 @@ export default function EmployeeTable({ employees, onEdit, onDelete }: Props) {
           {employees.map(emp => (
             <tr key={emp.emp_id} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
               <td className="px-4 py-2.5 font-mono text-xs text-indigo-700 dark:text-indigo-400">{emp.emp_id}</td>
-              <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-gray-100">{emp.full_name_th}</td>
+              <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-gray-100">
+                {emp.full_name_th}
+                {emp.nickname && <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500 font-normal">({emp.nickname})</span>}
+              </td>
               <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">{emp.full_name_en || '-'}</td>
               <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300">{emp.department || '-'}</td>
               <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">{emp.position || '-'}</td>

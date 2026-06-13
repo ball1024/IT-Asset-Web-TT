@@ -17,7 +17,11 @@
       "Bash(git checkout *)",
       "Bash(npm run *)",
       "PowerShell(\\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\app\\\\assets\\\\[id]\\\\AssetDetailContent.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\RepairSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\LicenseSection.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\ActivityLog.tsx\"\\).Count; \\(Get-Content \"D:\\\\ProjectAssetTT\\\\IT_Asset_web\\\\components\\\\assets\\\\GalleryLightbox.tsx\"\\).Count)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "Skill(code-review)",
+      "Skill(code-review:*)"
     ]
   }
 }
