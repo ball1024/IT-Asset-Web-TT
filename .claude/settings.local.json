@@ -21,7 +21,8 @@
       "mcp__visualize__read_me",
       "mcp__visualize__show_widget",
       "Skill(code-review)",
-      "Skill(code-review:*)"
+      "Skill(code-review:*)",
+      "Bash(npm list *)"
     ]
   }
 }

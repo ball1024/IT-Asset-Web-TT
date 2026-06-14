@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { X, Loader2, CameraOff, RefreshCw } from 'lucide-react'
 
 interface Props {
@@ -9,44 +9,48 @@ interface Props {
   onClose: () => void
 }
 
-const SCAN_FORMATS = [
-  // QR & 2D
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.DATA_MATRIX,
-  Html5QrcodeSupportedFormats.PDF_417,
-  // 1D Barcodes
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.CODABAR,
-]
-
-const SCANNER_ID = 'html5qr-scanner-region'
+// hint ให้ ZXing ลอง format เหล่านี้ก่อน เพื่อความเร็ว
+const HINTS = new Map()
+HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.CODE_93,
+  BarcodeFormat.QR_CODE,
+  BarcodeFormat.DATA_MATRIX,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.ITF,
+  BarcodeFormat.CODABAR,
+  BarcodeFormat.PDF_417,
+])
+HINTS.set(DecodeHintType.TRY_HARDER, true)
 
 export default function BarcodeScannerModal({ target, onResult, onClose }: Props) {
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const scannedRef = useRef(false)
+  const streamRef = useRef<MediaStream | null>(null)
+
   const [status, setStatus] = useState<'loading' | 'scanning' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [retryCount, setRetryCount] = useState(0)
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop()
-        scannerRef.current.clear()
-      } catch {}
-      scannerRef.current = null
+  const stopScanner = () => {
+    readerRef.current?.reset()
+    readerRef.current = null
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
   }
 
-  const handleClose = async () => {
-    await stopScanner()
+  const handleClose = () => {
+    stopScanner()
     onClose()
   }
 
@@ -54,49 +58,53 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
     setStatus('loading')
     setErrorMsg('')
     scannedRef.current = false
-
-    await stopScanner()
-
-    // รอให้ DOM พร้อม
-    await new Promise(r => setTimeout(r, 100))
-
-    const scanner = new Html5Qrcode(SCANNER_ID, {
-      formatsToSupport: SCAN_FORMATS,
-      verbose: false,
-    })
-    scannerRef.current = scanner
+    stopScanner()
 
     try {
-      await scanner.start(
-        { facingMode: 'environment' },
-        {
-          fps: 25,
-          qrbox: (w, h) => {
-            if (target === 'serial_no') {
-              // barcode แนวนอนบน label → กรอบกว้างมาก สูงน้อย
-              const bWidth  = Math.floor(Math.min(w, h) * 0.92)
-              const bHeight = Math.floor(bWidth * 0.28)
-              return { width: bWidth, height: bHeight }
-            }
-            // QR Code / Asset No. → กรอบสี่เหลี่ยมจัตุรัส
-            const size = Math.floor(Math.min(w, h) * 0.72)
-            return { width: size, height: size }
-          },
-          disableFlip: false,
+      // ขอ stream กล้องหลัง ความละเอียดสูงสุด
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
-        (decodedText) => {
-          if (scannedRef.current) return
-          scannedRef.current = true
-          stopScanner().then(() => {
-            onResult(decodedText, target)
+      })
+      streamRef.current = stream
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+
+      const reader = new BrowserMultiFormatReader(HINTS, {
+        delayBetweenScanAttempts: 80,   // ~12 fps สแกน
+        delayBetweenScanSuccess: 500,
+      })
+      readerRef.current = reader
+
+      setStatus('scanning')
+
+      // วน decode จาก video element
+      const decode = () => {
+        if (!videoRef.current || scannedRef.current) return
+        reader
+          .decodeFromVideoElement(videoRef.current)
+          .then((result) => {
+            if (scannedRef.current) return
+            scannedRef.current = true
+            stopScanner()
+            onResult(result.getText(), target)
             onClose()
           })
-        },
-        () => {
-          // scan ยังไม่เจอ — ปกติ ไม่ต้องทำอะไร
-        }
-      )
-      setStatus('scanning')
+          .catch(() => {
+            // ยังไม่เจอ ลองใหม่
+            if (!scannedRef.current) {
+              requestAnimationFrame(decode)
+            }
+          })
+      }
+      requestAnimationFrame(decode)
+
     } catch (err: unknown) {
       const e = err as DOMException | Error
       let msg = 'ไม่สามารถเปิดกล้องได้'
@@ -133,13 +141,42 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         </button>
       </div>
 
-      {/* Scanner area — html5-qrcode จะ inject video เข้า div นี้ */}
-      <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        <div
-          id={SCANNER_ID}
-          className="w-full max-w-lg"
-          style={{ minHeight: 300 }}
+      {/* Camera view */}
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          autoPlay
+          muted
+          playsInline
         />
+
+        {/* Scan guide overlay */}
+        {status === 'scanning' && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {target === 'serial_no' ? (
+              /* กรอบแนวนอนสำหรับ barcode */
+              <div
+                className="border-2 border-white/80 rounded"
+                style={{
+                  width: '90%',
+                  height: '18%',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+                }}
+              />
+            ) : (
+              /* กรอบสี่เหลี่ยมสำหรับ QR */
+              <div
+                className="border-2 border-white/80 rounded"
+                style={{
+                  width: '70%',
+                  aspectRatio: '1',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Loading overlay */}
         {status === 'loading' && (
@@ -161,10 +198,7 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
               <RefreshCw size={16} />
               ลองใหม่
             </button>
-            <button
-              onClick={handleClose}
-              className="text-white/60 text-sm underline"
-            >
+            <button onClick={handleClose} className="text-white/60 text-sm underline">
               ปิด
             </button>
           </div>
@@ -176,7 +210,7 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         <div className="px-4 pb-safe-bottom pb-6 pt-3 text-center">
           <p className="text-white/60 text-xs">
             {target === 'serial_no'
-              ? 'จัดบาร์โค้ดแนวนอนให้อยู่กลางกรอบ · เข้าใกล้ให้พอดี'
+              ? 'จัดบาร์โค้ดแนวนอนให้อยู่ในกรอบ · เข้าใกล้ให้ barcode เต็มกรอบ'
               : 'จัด QR Code ให้อยู่กลางกรอบ'}
           </p>
         </div>
