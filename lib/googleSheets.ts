@@ -3,7 +3,11 @@ import { SignJWT, importPKCS8 } from 'jose'
 
 function getPrivateKey() {
   const raw = process.env.GOOGLE_PRIVATE_KEY ?? ''
-  return raw.replace(/\\n/g, '\n')
+  return raw
+    .replace(/\\n/g, '\n')   // literal \n → newline
+    .replace(/\r\n/g, '\n')  // CRLF → LF
+    .replace(/\r/g, '\n')    // CR → LF
+    .trim()
 }
 
 // ใช้ jose (Web Crypto API) แทน googleapis JWT เพื่อ bypass OpenSSL 3 issue บน Node 18+/Vercel
