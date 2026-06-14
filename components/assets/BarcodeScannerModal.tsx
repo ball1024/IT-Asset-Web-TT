@@ -70,15 +70,18 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
       await scanner.start(
         { facingMode: 'environment' },
         {
-          fps: 15,
+          fps: 25,
           qrbox: (w, h) => {
-            // กรอบ scan: ถ้าหน้าจอแคบ (มือถือ) ให้กรอบกว้าง, ถ้าจอใหญ่ก็ scale ลง
-            const minEdge = Math.min(w, h)
-            const size = Math.floor(minEdge * 0.75)
-            // Barcode มักแนวนอน → กว้างกว่าสูง
-            return { width: size, height: Math.floor(size * 0.5) }
+            if (target === 'serial_no') {
+              // barcode แนวนอนบน label → กรอบกว้างมาก สูงน้อย
+              const bWidth  = Math.floor(Math.min(w, h) * 0.92)
+              const bHeight = Math.floor(bWidth * 0.28)
+              return { width: bWidth, height: bHeight }
+            }
+            // QR Code / Asset No. → กรอบสี่เหลี่ยมจัตุรัส
+            const size = Math.floor(Math.min(w, h) * 0.72)
+            return { width: size, height: size }
           },
-          aspectRatio: 1.7778, // 16:9
           disableFlip: false,
         },
         (decodedText) => {
@@ -172,7 +175,9 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
       {status === 'scanning' && (
         <div className="px-4 pb-safe-bottom pb-6 pt-3 text-center">
           <p className="text-white/60 text-xs">
-            จัดให้บาร์โค้ด / QR Code อยู่กลางกรอบ
+            {target === 'serial_no'
+              ? 'จัดบาร์โค้ดแนวนอนให้อยู่กลางกรอบ · เข้าใกล้ให้พอดี'
+              : 'จัด QR Code ให้อยู่กลางกรอบ'}
           </p>
         </div>
       )}

@@ -239,7 +239,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                 <div>
                   <p className="font-semibold text-gray-800 dark:text-gray-100">เอาผู้ใช้งานออก</p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                    {employee.full_name_th} · {employee.emp_id}
+                    {employee.full_name_th}{employee.nickname ? ` (${employee.nickname})` : ''} · {employee.emp_id}
                   </p>
                 </div>
                 <button onClick={() => { setShowUnassignModal(false); setUnassignReason('') }}
@@ -772,6 +772,7 @@ export default function AssetDetailContent({ paramsPromise }: { paramsPromise: P
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{employee.full_name_th}</p>
+                          {employee.nickname && <span className="text-sm text-gray-400 dark:text-gray-500 font-normal">({employee.nickname})</span>}
                           <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${employee.status === 'active' ? 'bg-green-100 text-green-700' : employee.status === 'probation' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
                             {employee.status === 'active' ? 'Active' : employee.status === 'probation' ? 'Probation' : 'Resign'}
                           </span>
