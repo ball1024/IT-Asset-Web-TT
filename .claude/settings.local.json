@@ -22,7 +22,8 @@
       "mcp__visualize__show_widget",
       "Skill(code-review)",
       "Skill(code-review:*)",
-      "Bash(npm list *)"
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('jose'\\); console.log\\('ok'\\)\")"
     ]
   }
 }

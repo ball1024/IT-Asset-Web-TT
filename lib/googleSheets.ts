@@ -1,20 +1,45 @@
 import { google } from 'googleapis'
+import { SignJWT, importPKCS8 } from 'jose'
 
-function getAuth() {
+function getPrivateKey() {
   const raw = process.env.GOOGLE_PRIVATE_KEY ?? ''
-  const privateKey = raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw
+  return raw.replace(/\\n/g, '\n')
+}
 
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key:  privateKey,
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+// ใช้ jose (Web Crypto API) แทน googleapis JWT เพื่อ bypass OpenSSL 3 issue บน Node 18+/Vercel
+async function getAccessToken(): Promise<string> {
+  const privateKey = getPrivateKey()
+  const key = await importPKCS8(privateKey, 'RS256')
+
+  const now = Math.floor(Date.now() / 1000)
+  const assertion = await new SignJWT({
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
   })
+    .setProtectedHeader({ alg: 'RS256' })
+    .setIssuer(process.env.GOOGLE_CLIENT_EMAIL!)
+    .setAudience('https://oauth2.googleapis.com/token')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 3600)
+    .sign(key)
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  })
+
+  const data = await res.json() as { access_token?: string; error?: string }
+  if (!data.access_token) throw new Error(`Google OAuth failed: ${JSON.stringify(data)}`)
+  return data.access_token
 }
 
 export async function getSheetsClient() {
-  const auth = getAuth()
+  const token = await getAccessToken()
+  const auth = new google.auth.OAuth2()
+  auth.setCredentials({ access_token: token })
   return google.sheets({ version: 'v4', auth })
 }
 
