@@ -78,7 +78,11 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
   const startZxingScan = useCallback(async (stream: MediaStream) => {
     if (!videoRef.current || !canvasRef.current) return
 
-    const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import('@zxing/library')
+    const {
+      MultiFormatReader, DecodeHintType, BarcodeFormat,
+      HTMLCanvasElementLuminanceSource, HybridBinarizer, BinaryBitmap,
+    } = await import('@zxing/library')
+
     const hints = new Map()
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93,
@@ -89,7 +93,8 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
     ])
     hints.set(DecodeHintType.TRY_HARDER, true)
 
-    const reader = new BrowserMultiFormatReader(hints, 120)
+    const reader = new MultiFormatReader()
+    reader.setHints(hints)
     setMethod('zxing')
     setStatus('scanning')
 
@@ -104,7 +109,9 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         canvas.height = v.videoHeight
         ctx.drawImage(v, 0, 0)
         try {
-          const result = reader.decodeFromCanvas(canvas)
+          const lum = new HTMLCanvasElementLuminanceSource(canvas)
+          const bitmap = new BinaryBitmap(new HybridBinarizer(lum))
+          const result = reader.decode(bitmap)
           if (result && !scannedRef.current) {
             scannedRef.current = true
             stopAll()
