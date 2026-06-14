@@ -2,19 +2,19 @@ import { google } from 'googleapis'
 
 function getAuth() {
   const raw = process.env.GOOGLE_PRIVATE_KEY ?? ''
-  // รองรับทั้ง \n จริง และ literal \\n ที่ได้จาก .env
   const privateKey = raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw
 
-  return new google.auth.JWT({
-    email:  process.env.GOOGLE_CLIENT_EMAIL,
-    key:    privateKey,
+  return new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key:  privateKey,
+    },
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   })
 }
 
 export async function getSheetsClient() {
   const auth = getAuth()
-  await auth.authorize()
   return google.sheets({ version: 'v4', auth })
 }
 
