@@ -76,10 +76,7 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         await videoRef.current.play()
       }
 
-      const reader = new BrowserMultiFormatReader(HINTS, {
-        delayBetweenScanAttempts: 80,   // ~12 fps สแกน
-        delayBetweenScanSuccess: 500,
-      })
+      const reader = new BrowserMultiFormatReader(HINTS, 80)
       readerRef.current = reader
 
       setStatus('scanning')
