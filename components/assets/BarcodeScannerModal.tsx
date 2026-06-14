@@ -9,7 +9,6 @@ interface Props {
   onClose: () => void
 }
 
-// hint ให้ ZXing ลอง format เหล่านี้ก่อน เพื่อความเร็ว
 const HINTS = new Map()
 HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
   BarcodeFormat.CODE_128,
@@ -31,7 +30,6 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
   const videoRef = useRef<HTMLVideoElement>(null)
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const scannedRef = useRef(false)
-  const streamRef = useRef<MediaStream | null>(null)
 
   const [status, setStatus] = useState<'loading' | 'scanning' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
@@ -40,13 +38,6 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
   const stopScanner = () => {
     readerRef.current?.reset()
     readerRef.current = null
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
   }
 
   const handleClose = () => {
@@ -60,48 +51,33 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
     scannedRef.current = false
     stopScanner()
 
+    if (!videoRef.current) return
+
     try {
-      // ขอ stream กล้องหลัง ความละเอียดสูงสุด
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-      })
-      streamRef.current = stream
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-
-      const reader = new BrowserMultiFormatReader(HINTS, 80)
+      const reader = new BrowserMultiFormatReader(HINTS, 100)
       readerRef.current = reader
 
-      setStatus('scanning')
-
-      // วน decode จาก video element
-      const decode = () => {
-        if (!videoRef.current || scannedRef.current) return
-        reader
-          .decodeFromVideoElement(videoRef.current)
-          .then((result) => {
-            if (scannedRef.current) return
+      await reader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        },
+        videoRef.current,
+        (result, err) => {
+          if (result && !scannedRef.current) {
             scannedRef.current = true
             stopScanner()
             onResult(result.getText(), target)
             onClose()
-          })
-          .catch(() => {
-            // ยังไม่เจอ ลองใหม่
-            if (!scannedRef.current) {
-              requestAnimationFrame(decode)
-            }
-          })
-      }
-      requestAnimationFrame(decode)
-
+          }
+          // err คือ "ยังไม่เจอ" ปกติ ไม่ต้องทำอะไร
+          void err
+        }
+      )
+      setStatus('scanning')
     } catch (err: unknown) {
       const e = err as DOMException | Error
       let msg = 'ไม่สามารถเปิดกล้องได้'
@@ -139,7 +115,7 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
       </div>
 
       {/* Camera view */}
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+      <div className="flex-1 relative overflow-hidden">
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
@@ -152,23 +128,21 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         {status === 'scanning' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {target === 'serial_no' ? (
-              /* กรอบแนวนอนสำหรับ barcode */
               <div
-                className="border-2 border-white/80 rounded"
+                className="border-2 border-white rounded"
                 style={{
-                  width: '90%',
-                  height: '18%',
-                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+                  width: '88%',
+                  height: '15%',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
                 }}
               />
             ) : (
-              /* กรอบสี่เหลี่ยมสำหรับ QR */
               <div
-                className="border-2 border-white/80 rounded"
+                className="border-2 border-white rounded"
                 style={{
-                  width: '70%',
+                  width: '68%',
                   aspectRatio: '1',
-                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
                 }}
               />
             )}
@@ -207,7 +181,7 @@ export default function BarcodeScannerModal({ target, onResult, onClose }: Props
         <div className="px-4 pb-safe-bottom pb-6 pt-3 text-center">
           <p className="text-white/60 text-xs">
             {target === 'serial_no'
-              ? 'จัดบาร์โค้ดแนวนอนให้อยู่ในกรอบ · เข้าใกล้ให้ barcode เต็มกรอบ'
+              ? 'จัดบาร์โค้ดแนวนอนให้อยู่ในกรอบ · เข้าใกล้ให้บาร์โค้ดเต็มกรอบ'
               : 'จัด QR Code ให้อยู่กลางกรอบ'}
           </p>
         </div>
