@@ -8,7 +8,7 @@ function getPrivateKey() {
     .replace(/\\n/g, '\n')
     .replace(/-----BEGIN PRIVATE KEY-----/g, '')
     .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s+/g, '')  // ลบ whitespace ทุกตัว
+    .replace(/[^A-Za-z0-9+/=]/g, '')  // กรองเฉพาะ valid base64 chars เท่านั้น
   // สร้าง PEM ใหม่ที่ถูกต้อง (64 chars per line)
   const lines = base64.match(/.{1,64}/g) ?? []
   return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----\n`
